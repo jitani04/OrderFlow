@@ -1,0 +1,55 @@
+name: orderflow
+
+# Brings the API and its database up together:
+#   docker compose -f deploy/compose/docker-compose.yml up --build
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: orderflow-postgres
+    environment:
+      POSTGRES_USER: orderflow
+      POSTGRES_PASSWORD: orderflow
+      POSTGRES_DB: orderflow
+    ports:
+      # 5433 on the host: 5432 is commonly already taken by a local Postgres.
+      # The API inside this network still reaches it as postgres:5432.
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # The API waits on this rather than on the container merely having started —
+      # Postgres accepts connections several seconds after the process appears.
+      test: ["CMD-SHELL", "pg_isready -U orderflow -d orderflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  api:
+    container_name: orderflow-api
+    restart: unless-stopped
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__OrderFlowDb: Host=postgres;Port=5432;Database=orderflow;Username=orderflow;Password=orderflow
+      # Development-only key. Kubernetes supplies this from a Secret.
+      Jwt__SigningKey: compose-development-signing-key-not-for-any-real-environment
+      Cors__AllowedOrigins__0: http://localhost:8080
+      Cors__AllowedOrigins__1: http://localhost:5173
+    ports:
+      - "5100:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8080/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  postgres-data:
