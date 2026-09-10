@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>OrderFlow.Domain</RootNamespace>
+    <AssemblyName>OrderFlow.Domain</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    Deliberately no package references. The domain layer is plain C#, so the business
+    rules can be unit tested in milliseconds with no database, and nothing infrastructural
+    can leak into them. If this project ever needs a package, the logic asking for it
+    belongs in Infrastructure instead.
+  -->
+
+</Project>

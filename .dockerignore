@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/.vs/
+**/.vscode/
+**/.idea/
+.git/
+.gitignore
+**/*.user
+**/.DS_Store
+docs/
+deploy/k8s/
