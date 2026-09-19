@@ -30,18 +30,39 @@ export function ProductsPanel({ isAdmin, onChanged }: { isAdmin: boolean; onChan
     setError(null);
     setNotice(null);
 
-    try {
-      await api.updateStock(product.id, Number(draft.quantity), Number(draft.threshold));
+    function dropEdit() {
       setEditing((current) => {
         const next = { ...current };
         delete next[product.id];
         return next;
       });
-      setNotice(`Stock updated for ${product.sku}.`);
+    }
+
+    try {
+      // product.version is what this edit was based on. If an order deducted stock, or
+      // another admin saved first, the API refuses rather than letting this absolute count
+      // overwrite a change nobody here has seen.
+      await api.updateStock(
+        product.id,
+        Number(draft.quantity),
+        Number(draft.threshold),
+        product.version,
+      );
+
+      dropEdit();
+
+      // Refresh before announcing success, or the banner appears next to the old numbers
+      // for as long as the reload takes.
       await refresh();
+      setNotice(`Stock updated for ${product.sku}.`);
       onChanged();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Update failed.');
+
+      // A conflict means the row on screen is stale. Reload and drop the edit — leaving
+      // the old numbers in the boxes would only invite the same failed save again.
+      await refresh();
+      dropEdit();
     } finally {
       setBusyId(null);
     }

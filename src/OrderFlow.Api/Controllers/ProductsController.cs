@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Net.Http.Headers;
 using OrderFlow.Api.Models;
 using OrderFlow.Domain.Catalog;
 using OrderFlow.Domain.Identity;
@@ -32,7 +34,15 @@ public sealed class ProductsController(
     {
         var product = await products.GetAsync(id, cancellationToken);
 
-        return product is null ? NotFound() : Ok(ProductResponse.From(product));
+        if (product is null)
+        {
+            return NotFound();
+        }
+
+        // The version a caller must echo back in If-Match to change this product's stock.
+        SetETag(product.Stock?.ConcurrencyStamp);
+
+        return Ok(ProductResponse.From(product));
     }
 
     /// <summary>Creates a product together with its opening stock.</summary>
@@ -73,17 +83,46 @@ public sealed class ProductsController(
         return CreatedAtAction(nameof(GetById), new { id = productId }, ProductResponse.From(created!));
     }
 
-    /// <summary>Replaces a product's stock record, as a stock count would.</summary>
+    /// <summary>
+    /// Replaces a product's stock record, as a stock count would.
+    /// </summary>
+    /// <param name="id">The product to update.</param>
+    /// <param name="request">The new absolute quantities.</param>
+    /// <param name="cancellationToken">Cancels the request if the caller disconnects.</param>
+    /// <remarks>
+    /// Requires an <c>If-Match</c> header carrying the version from a prior GET.
+    /// <para>
+    /// This body is an absolute count, not a delta, so applying it blindly would overwrite
+    /// whatever happened since the caller last looked — including stock an order deducted
+    /// in between. Requiring the version turns that silent loss into a 409, and the caller
+    /// re-reads and decides what it actually meant.
+    /// </para>
+    /// </remarks>
     [HttpPut("{id:guid}/stock")]
     [Authorize(Roles = Roles.Admin)]
     [ProducesResponseType<ProductResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status428PreconditionRequired)]
     public async Task<ActionResult<ProductResponse>> UpdateStock(
         Guid id,
         UpdateStockRequest request,
         CancellationToken cancellationToken)
     {
+        if (!TryReadIfMatch(out var expectedVersion))
+        {
+            // 428, not 400: the request is well formed, it just may not be applied
+            // unconditionally. The name says exactly what is missing.
+            return StatusCode(StatusCodes.Status428PreconditionRequired, new ProblemDetails
+            {
+                Title = "If-Match is required.",
+                Detail = "Read the product first and send its version in an If-Match header, "
+                         + "so this update cannot overwrite a change you have not seen.",
+                Status = StatusCodes.Status428PreconditionRequired,
+            });
+        }
+
         var product = await products.GetAsync(id, cancellationToken);
 
         if (product?.Stock is null)
@@ -91,13 +130,72 @@ public sealed class ProductsController(
             return NotFound();
         }
 
+        if (!product.Stock.MatchesStamp(expectedVersion))
+        {
+            return StockConflict(product);
+        }
+
         product.Stock.Set(request.QuantityOnHand, request.LowStockThreshold);
-        await products.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await products.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // The check above covers a caller working from a stale read. This covers the
+            // narrower window between that check and this save, where the concurrency
+            // token in the UPDATE's WHERE clause matches nothing.
+            logger.LogInformation("Concurrent stock update lost the race for product {ProductId}.", id);
+
+            var current = await products.GetAsync(id, cancellationToken);
+            return current is null ? NotFound() : StockConflict(current);
+        }
 
         logger.LogInformation(
             "Set stock for {Sku} to {Quantity} (threshold {Threshold}).",
             product.Sku, request.QuantityOnHand, request.LowStockThreshold);
 
+        SetETag(product.Stock.ConcurrencyStamp);
+
         return Ok(ProductResponse.From(product));
     }
+
+    /// <summary>Parses If-Match, accepting both a quoted ETag and a bare GUID.</summary>
+    private bool TryReadIfMatch(out Guid version)
+    {
+        version = Guid.Empty;
+
+        var header = Request.Headers[HeaderNames.IfMatch].ToString();
+
+        if (string.IsNullOrWhiteSpace(header))
+        {
+            return false;
+        }
+
+        // Wildcard means "any current version", which is the unconditional write this
+        // endpoint exists to prevent.
+        if (header.Trim() == "*")
+        {
+            return false;
+        }
+
+        return Guid.TryParse(header.Trim().Trim('"').TrimStart('W', '/'), out version);
+    }
+
+    private void SetETag(Guid? version)
+    {
+        if (version is { } value)
+        {
+            Response.Headers.ETag = $"\"{value}\"";
+        }
+    }
+
+    private ActionResult StockConflict(Product product) => Conflict(new ProblemDetails
+    {
+        Title = "The product changed since you read it.",
+        Detail = $"Stock for {product.Sku} is now {product.Stock?.QuantityOnHand ?? 0} on hand. "
+                 + "Re-read the product and retry with its current version.",
+        Status = StatusCodes.Status409Conflict,
+    });
 }

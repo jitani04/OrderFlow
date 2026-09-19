@@ -96,11 +96,19 @@ export const api = {
   createProduct: async (payload: CreateProductPayload) =>
     (await http.post<Product>('/api/products', payload)).data,
 
-  updateStock: async (productId: string, quantityOnHand: number, lowStockThreshold: number) =>
-    (await http.put<Product>(`/api/products/${productId}/stock`, {
-      quantityOnHand,
-      lowStockThreshold,
-    })).data,
+  updateStock: async (
+    productId: string,
+    quantityOnHand: number,
+    lowStockThreshold: number,
+    version: string,
+  ) =>
+    (await http.put<Product>(
+      `/api/products/${productId}/stock`,
+      { quantityOnHand, lowStockThreshold },
+      // The version this edit was based on. The API refuses the write if anything changed
+      // since — an order deducting stock, or another admin saving first.
+      { headers: { 'If-Match': `"${version}"` } },
+    )).data,
 
   placeOrder: async (customerName: string, items: { productId: string; quantity: number }[]) =>
     (await http.post<Order>('/api/orders', { customerName, items })).data,

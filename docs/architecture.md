@@ -185,6 +185,14 @@ rejected order still persists its lines.
 keeps local development to one command but races when there is more than one replica. The
 same image run with `--migrate-only` gives Kubernetes a single owner for the schema.
 
+**Stock is locked pessimistically for orders and optimistically for admin edits.** Order
+placement holds `FOR UPDATE` row locks: contention is likely, the transaction is short, and
+the failure mode is invisible overselling. Admin stock edits cannot hold a lock, because
+the "transaction" spans a person walking to a shelf — so the row carries a version and the
+write must name it (`If-Match`), giving a 409 rather than silently overwriting whatever
+changed meanwhile. Since the body is an absolute count rather than a delta, that includes
+erasing a deduction an order made mid-edit.
+
 **Order history is paged; the catalogue is not.** Orders only grow, so an unbounded list
 endpoint fails eventually and silently. Products are bounded and the order form needs all
 of them. Paging is offset-based, which suits a pager and degrades on deep pages; keyset

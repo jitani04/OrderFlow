@@ -17,9 +17,14 @@ customers racing for the last item cannot both win.
 |---|---|
 | ![Confirmed order](docs/screenshots/02-order-confirmed.png) | ![Rejected order](docs/screenshots/03-order-rejected.png) |
 
-| Orders | Products and stock |
+| Orders — filtered and paged | Products and stock |
 |---|---|
 | ![Orders](docs/screenshots/04-orders.png) | ![Products](docs/screenshots/05-products.png) |
+
+Editing stock sends the version it was based on, so a concurrent change is refused rather
+than silently overwritten:
+
+![Stock edited](docs/screenshots/06-stock-edited.png)
 
 ---
 
@@ -195,7 +200,7 @@ All endpoints except `POST /auth/login` require a bearer token.
 | `GET` | `/api/products` | any | List products with current stock |
 | `GET` | `/api/products/{id}` | any | One product with its stock |
 | `POST` | `/api/products` | Admin | Create a product and its opening stock |
-| `PUT` | `/api/products/{id}/stock` | Admin | Replace a product's stock record |
+| `PUT` | `/api/products/{id}/stock` | Admin | Replace a product's stock record (requires `If-Match`) |
 | `POST` | `/api/orders` | any | Place an order; returns Confirmed or Rejected |
 | `GET` | `/api/orders` | any | List orders, newest first — paged, filterable by status |
 | `GET` | `/api/orders/{id}` | any | One order with its lines |
@@ -281,6 +286,45 @@ to buy and could not get, which is the signal that drives restocking. It returns
 A product that exists but is short produces a `Rejected` order. A product id that does not
 exist at all is a bad request and returns `400`. Conflating them also violates the
 `order_items` foreign key, since a rejected order still persists its lines.
+
+### Two kinds of locking, for two different problems
+
+The service uses **pessimistic** locking in one place and **optimistic** locking in
+another, and the difference is deliberate.
+
+**Placing an order takes row locks (`FOR UPDATE`).** Contention is likely — two customers
+really do race for the last item — the transaction is short, and a failure would be
+invisible corruption. Making the second caller wait a few milliseconds is cheap and always
+correct.
+
+**Updating stock uses a version token (`If-Match` / `ETag`).** Here the "transaction" spans
+a human: read the product, walk to the shelf, count it, submit. Holding a database lock for
+that is out of the question. Instead every stock row carries a version that changes on
+every write, and an update must say which version it was based on.
+
+```bash
+# read — the version comes back as an ETag and in the body
+curl -si http://localhost:5100/api/products/$ID -H "Authorization: Bearer $TOKEN" | grep -i etag
+# ETag: "6f1c...e93a"
+
+# write — must say which version it is replacing
+curl -s -X PUT http://localhost:5100/api/products/$ID/stock \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -H 'If-Match: "6f1c...e93a"' \
+  -d '{"quantityOnHand":120,"lowStockThreshold":10}'
+```
+
+A stale version gets `409 Conflict`; a missing one gets `428 Precondition Required`.
+
+This is not hypothetical tidiness. The request body is an **absolute count, not a delta**.
+An admin who reads "100 on hand", watches an order deduct five, and then submits their
+count of 100 would silently erase that deduction — leaving the service promising goods it
+has already sold. `An_order_placed_mid_edit_invalidates_the_admins_version` covers exactly
+that case.
+
+The check happens twice on purpose: once in the controller for a clear 409, and again in
+the `UPDATE`'s `WHERE` clause via EF's concurrency token, which closes the narrow window
+between the check and the save.
 
 ### Why order history is paged, and the catalogue is not
 

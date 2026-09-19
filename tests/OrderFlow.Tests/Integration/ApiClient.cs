@@ -64,6 +64,30 @@ internal static class ApiClient
     public static async Task<ProductBody> GetProductAsync(this HttpClient client, Guid productId) =>
         (await client.GetFromJsonAsync<ProductBody>($"/api/products/{productId}"))!;
 
+    /// <summary>
+    /// Replaces a product's stock, carrying the version in If-Match. Pass
+    /// <paramref name="version"/> as null to send no header at all.
+    /// </summary>
+    public static Task<HttpResponseMessage> UpdateStockAsync(
+        this HttpClient client,
+        Guid productId,
+        int quantityOnHand,
+        int lowStockThreshold,
+        Guid? version)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Put, $"/api/products/{productId}/stock")
+        {
+            Content = JsonContent.Create(new { quantityOnHand, lowStockThreshold }),
+        };
+
+        if (version is { } value)
+        {
+            request.Headers.TryAddWithoutValidation("If-Match", $"\"{value}\"");
+        }
+
+        return client.SendAsync(request);
+    }
+
     internal sealed record LoginBody(string AccessToken, string TokenType, DateTimeOffset ExpiresAt, string Username, string Role);
 
     internal sealed record ProductBody(
@@ -73,7 +97,9 @@ internal static class ApiClient
         decimal Price,
         int QuantityOnHand,
         int LowStockThreshold,
-        bool IsLow);
+        bool IsLow,
+        DateTimeOffset CreatedAt,
+        Guid Version);
 
     internal sealed record OrderBody(
         Guid Id,

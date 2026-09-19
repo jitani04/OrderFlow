@@ -101,9 +101,7 @@ public class ProductTests(OrderFlowApiFactory factory)
         var client = await factory.AuthenticatedAsync();
         var product = await client.CreateProductAsync(quantityOnHand: 50, lowStockThreshold: 5);
 
-        var response = await client.PutAsJsonAsync(
-            $"/api/products/{product.Id}/stock",
-            new { quantityOnHand = 4, lowStockThreshold = 5 });
+        var response = await client.UpdateStockAsync(product.Id, 4, 5, product.Version);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -118,9 +116,7 @@ public class ProductTests(OrderFlowApiFactory factory)
         var client = await factory.AuthenticatedAsync();
         var product = await client.CreateProductAsync(quantityOnHand: 5);
 
-        var response = await client.PutAsJsonAsync(
-            $"/api/products/{product.Id}/stock",
-            new { quantityOnHand = -1, lowStockThreshold = 0 });
+        var response = await client.UpdateStockAsync(product.Id, -1, 0, product.Version);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
@@ -130,9 +126,7 @@ public class ProductTests(OrderFlowApiFactory factory)
     {
         var client = await factory.AuthenticatedAsync();
 
-        var response = await client.PutAsJsonAsync(
-            $"/api/products/{Guid.NewGuid()}/stock",
-            new { quantityOnHand = 1, lowStockThreshold = 0 });
+        var response = await client.UpdateStockAsync(Guid.NewGuid(), 1, 0, Guid.NewGuid());
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }

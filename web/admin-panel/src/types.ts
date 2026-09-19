@@ -9,6 +9,8 @@ export interface Product {
   lowStockThreshold: number;
   isLow: boolean;
   createdAt: string;
+  /** Echoed back in If-Match when changing stock, so a stale edit is refused. */
+  version: string;
 }
 
 export interface OrderItem {
