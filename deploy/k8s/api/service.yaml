@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: orderflow-api
+  namespace: orderflow
+spec:
+  # ClusterIP: the API is reachable only inside the cluster. Public traffic arrives
+  # through the Ingress.
+  type: ClusterIP
+  selector:
+    app: orderflow-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

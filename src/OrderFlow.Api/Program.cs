@@ -140,7 +140,23 @@ app.UseSwaggerUI(ui =>
     ui.DocumentTitle = "OrderFlow API";
 });
 
-await app.Services.MigrateAndSeedAsync();
+// Two ways to get the schema in place.
+//
+// `--migrate-only` migrates, seeds and exits. Kubernetes runs the same image that way as
+// a Job before the Deployment rolls, so N replicas never race to apply the same schema.
+//
+// Otherwise the API migrates as it starts, which keeps `docker compose up` to one command.
+// Set Database:MigrateOnStartup to false wherever a Job owns that instead.
+if (args.Contains("--migrate-only"))
+{
+    await app.Services.MigrateAndSeedAsync();
+    return;
+}
+
+if (builder.Configuration.GetValue("Database:MigrateOnStartup", defaultValue: true))
+{
+    await app.Services.MigrateAndSeedAsync();
+}
 
 await app.RunAsync();
 

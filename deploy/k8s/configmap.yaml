@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orderflow-config
+  namespace: orderflow
+data:
+  # Non-secret settings only. Anything sensitive belongs in the Secret, because a ConfigMap
+  # is readable by anyone who can read the namespace.
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ASPNETCORE_HTTP_PORTS: "8080"
+  Jwt__Issuer: "orderflow"
+  Jwt__Audience: "orderflow-api"
+  Jwt__ExpiryMinutes: "60"
+  # A Job owns migrations here, so the pods must not race to apply them on startup.
+  Database__MigrateOnStartup: "false"

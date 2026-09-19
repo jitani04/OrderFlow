@@ -1,3 +1,11 @@
+# Processed by the nginx image's envsubst entrypoint at container start.
+#
+# ${API_UPSTREAM} differs per environment — "api:8080" under docker-compose,
+# "orderflow-api:8080" in Kubernetes — and nginx resolves upstream names when it starts,
+# so a hardcoded name crash-loops the container wherever the service is named differently.
+#
+# NGINX_ENVSUBST_FILTER restricts substitution to API_* so nginx's own runtime variables
+# ($uri, $host, $remote_addr) survive untouched.
 server {
     listen 80;
     server_name _;
@@ -24,7 +32,7 @@ server {
 
     # Proxied so the browser only ever talks to this origin.
     location /api/ {
-        proxy_pass         http://api:8080;
+        proxy_pass         http://${API_UPSTREAM};
         proxy_http_version 1.1;
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
@@ -33,7 +41,7 @@ server {
     }
 
     location /auth/ {
-        proxy_pass         http://api:8080;
+        proxy_pass         http://${API_UPSTREAM};
         proxy_http_version 1.1;
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;

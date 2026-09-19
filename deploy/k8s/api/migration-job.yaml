@@ -1,0 +1,34 @@
+# Runs migrations and seeding once, before the API rolls out.
+#
+# The API could migrate as it starts — and does under docker-compose — but with more than
+# one replica that becomes a race to apply the same schema. A Job gives it a single owner.
+# ConfigMap sets Database__MigrateOnStartup=false so the pods do not repeat the work.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: orderflow-migrate
+  namespace: orderflow
+  annotations:
+    # Tells kubectl apply -k to run this before the Deployment and wait for it.
+    argocd.argoproj.io/hook: PreSync
+spec:
+  backoffLimit: 4
+  template:
+    metadata:
+      labels:
+        app: orderflow-migrate
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: migrate
+          image: orderflow-api:v1
+          imagePullPolicy: IfNotPresent
+          args: ["--migrate-only"]
+          envFrom:
+            - configMapRef: { name: orderflow-config }
+            - secretRef: { name: orderflow-secrets }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits:   { memory: 512Mi }

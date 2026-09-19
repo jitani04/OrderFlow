@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orderflow-api
+  namespace: orderflow
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: orderflow-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0   # never drop below the desired count during a rollout
+  template:
+    metadata:
+      labels:
+        app: orderflow-api
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: api
+          image: orderflow-api:v1
+          # An explicit version rather than :latest. With :latest and IfNotPresent, a node
+          # that already holds an image by that tag keeps running the old one — which is
+          # exactly what happened while building this, and it is silent. Bump the tag to
+          # deploy a new build. A real cluster pulls this from a registry such as ECR.
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef: { name: orderflow-config }
+            - secretRef: { name: orderflow-secrets }
+
+          # Checks no dependencies. If it checked the database, a brief outage would make
+          # Kubernetes restart every pod — which cannot fix a database problem and turns a
+          # partial outage into a total one.
+          livenessProbe:
+            httpGet: { path: /health/live, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+
+          # Does check the database. A failure takes the pod out of the Service without
+          # restarting it, so it rejoins on its own once the database recovers.
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+
+          # Keeps a slow first start from counting as a crash, without making the liveness
+          # probe itself lenient once the pod is up.
+          startupProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 5
+            failureThreshold: 30
+
+          resources:
+            # requests decide scheduling; limits decide throttling and OOM kills. No CPU
+            # limit on purpose: a CPU limit throttles rather than kills, and it commonly
+            # adds latency for no benefit when requests are set correctly.
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { memory: 512Mi }
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        # readOnlyRootFilesystem is on, so anything needing scratch space gets an
+        # explicit writable mount.
+        - name: tmp
+          emptyDir: {}

@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: orderflow
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - postgres/service.yaml
+  - postgres/statefulset.yaml
+  - api/migration-job.yaml
+  - api/deployment.yaml
+  - api/service.yaml
+  - admin-panel/deployment.yaml
+  - admin-panel/service.yaml
+  - ingress.yaml
+
+labels:
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/part-of: orderflow

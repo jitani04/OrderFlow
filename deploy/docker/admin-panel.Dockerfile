@@ -23,7 +23,12 @@ RUN npm run build
 
 FROM nginx:1.29-alpine AS runtime
 
-COPY deploy/docker/admin-panel.nginx.conf /etc/nginx/conf.d/default.conf
+# templates/ rather than conf.d/: the image's entrypoint runs envsubst over anything here
+# and writes the result into conf.d before nginx starts.
+COPY deploy/docker/admin-panel.nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
+
+ENV API_UPSTREAM=api:8080 \
+    NGINX_ENVSUBST_FILTER=^API_
 
 EXPOSE 80

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: orderflow
+spec:
+  # Headless: the StatefulSet wants stable per-pod DNS rather than load balancing, and
+  # there is only ever one writer to reach.
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres

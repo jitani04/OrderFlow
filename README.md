@@ -9,6 +9,18 @@ customers racing for the last item cannot both win.
 
 ---
 
+## Screenshots
+
+| Placing an order | Rejected for insufficient stock |
+|---|---|
+| ![Confirmed order](docs/screenshots/02-order-confirmed.png) | ![Rejected order](docs/screenshots/03-order-rejected.png) |
+
+| Orders | Products and stock |
+|---|---|
+| ![Orders](docs/screenshots/04-orders.png) | ![Products](docs/screenshots/05-products.png) |
+
+---
+
 ## What it does
 
 - Keeps a catalogue of products, each with a stock level and a low-stock threshold.
@@ -104,6 +116,34 @@ startup, so there is no separate setup step.
 
 Both are configurable under the `Seed` section and are overridden from a Secret in
 Kubernetes. The password is hashed with BCrypt at seed time and never stored as written.
+
+### On Kubernetes
+
+Verified on minikube; the same manifests deploy to k3s or EKS.
+
+```bash
+minikube start --driver=docker
+minikube addons enable ingress
+
+docker compose -f deploy/compose/docker-compose.yml build
+docker tag orderflow-api:latest         orderflow-api:v1
+docker tag orderflow-admin-panel:latest orderflow-admin-panel:v1
+minikube image load orderflow-api:v1
+minikube image load orderflow-admin-panel:v1
+
+kubectl apply -k deploy/k8s
+kubectl -n orderflow port-forward svc/orderflow-admin-panel 8080:80
+```
+
+That brings up PostgreSQL as a StatefulSet, runs schema migrations as a **Job**, then rolls
+out two API replicas and two panel replicas behind an Ingress.
+
+Migrations run as a Job rather than at startup because two replicas racing to apply the
+same schema is a genuine hazard. The same image handles it — `--migrate-only` migrates,
+seeds and exits.
+
+Full instructions, plus a low-cost single-EC2 path and an EKS path, are in
+**[docs/deployment.md](docs/deployment.md)**.
 
 ---
 
@@ -282,6 +322,15 @@ makes, and it is why a transaction alone is not enough.
 
 ---
 
+## Documentation
+
+| Document | Contents |
+|---|---|
+| **[docs/architecture.md](docs/architecture.md)** | Layering, data model, the order-placement transaction, tradeoffs |
+| **[docs/deployment.md](docs/deployment.md)** | docker-compose, minikube, single-EC2 k3s, and EKS |
+
+---
+
 ## Repository layout
 
 ```
@@ -294,8 +343,8 @@ tests/
 web/
   admin-panel/               React + TypeScript + Vite
 deploy/
-  docker/                    Dockerfiles
+  docker/                    Dockerfile (API) + admin panel image and nginx template
   compose/                   local docker-compose stack
-  k8s/                       Kubernetes manifests
-docs/                        architecture notes
+  k8s/                       Kubernetes manifests (kustomize)
+docs/                        architecture, deployment, screenshots
 ```
