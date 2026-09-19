@@ -197,10 +197,32 @@ All endpoints except `POST /auth/login` require a bearer token.
 | `POST` | `/api/products` | Admin | Create a product and its opening stock |
 | `PUT` | `/api/products/{id}/stock` | Admin | Replace a product's stock record |
 | `POST` | `/api/orders` | any | Place an order; returns Confirmed or Rejected |
-| `GET` | `/api/orders` | any | List orders, newest first |
+| `GET` | `/api/orders` | any | List orders, newest first — paged, filterable by status |
 | `GET` | `/api/orders/{id}` | any | One order with its lines |
 | `GET` | `/health/live` | anonymous | Liveness probe |
 | `GET` | `/health/ready` | anonymous | Readiness probe (checks the database) |
+
+### Paging
+
+`GET /api/orders` takes `page` (1-based), `pageSize` (max 100) and `status`
+(`Pending`/`Confirmed`/`Rejected`, case-insensitive):
+
+```bash
+curl -s "http://localhost:5100/api/orders?page=2&pageSize=10&status=Rejected" \
+  -H "Authorization: Bearer $TOKEN" | jq
+```
+
+```json
+{
+  "items": [ ... ],
+  "page": 2, "pageSize": 10, "totalCount": 37, "totalPages": 4,
+  "hasPreviousPage": true, "hasNextPage": true
+}
+```
+
+Out-of-range paging values are clamped rather than rejected — a page past the end returns
+an empty page, and an oversized `pageSize` is capped. An unknown `status` is a `400`,
+because that is a typo rather than a boundary.
 
 ---
 
@@ -259,6 +281,21 @@ to buy and could not get, which is the signal that drives restocking. It returns
 A product that exists but is short produces a `Rejected` order. A product id that does not
 exist at all is a bad request and returns `400`. Conflating them also violates the
 `order_items` foreign key, since a rejected order still persists its lines.
+
+### Why order history is paged, and the catalogue is not
+
+Order history only grows, so returning all of it is a slow-acting outage: fine in
+development, then a timeout once the table is large. It is paged, capped at 100 per page.
+
+The product catalogue is deliberately not paged. It is bounded, and the order form needs
+every product to populate its dropdown. The moment a catalogue stops being bounded, it
+would get the same treatment.
+
+Paging is offset-based (`Skip`/`Take`). That is the right call for an admin screen with
+page numbers, and it degrades on deep pages, because `OFFSET 100000` makes the database
+walk and discard those rows. Keyset paging — "give me what comes after this order" — stays
+fast at any depth but cannot jump to page 7. If this ever served an endless-scroll feed
+rather than a pager, that is the trade to revisit.
 
 ### Why JWT
 

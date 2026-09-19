@@ -1,5 +1,12 @@
 import axios, { AxiosError, type AxiosInstance } from 'axios';
-import type { CreateProductPayload, Order, Product, Session } from '../types';
+import type {
+  CreateProductPayload,
+  Order,
+  OrderQuery,
+  PagedResponse,
+  Product,
+  Session,
+} from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5100';
 const SESSION_KEY = 'orderflow.session';
@@ -98,5 +105,13 @@ export const api = {
   placeOrder: async (customerName: string, items: { productId: string; quantity: number }[]) =>
     (await http.post<Order>('/api/orders', { customerName, items })).data,
 
-  listOrders: async () => (await http.get<Order[]>('/api/orders')).data,
+  listOrders: async (query: OrderQuery = {}) =>
+    (await http.get<PagedResponse<Order>>('/api/orders', {
+      params: {
+        page: query.page ?? 1,
+        pageSize: query.pageSize ?? 25,
+        // 'All' is a UI concept; the API means "every status" by omitting the parameter.
+        ...(query.status && query.status !== 'All' ? { status: query.status } : {}),
+      },
+    })).data,
 };

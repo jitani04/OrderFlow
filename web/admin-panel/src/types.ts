@@ -43,3 +43,19 @@ export interface CreateProductPayload {
   quantityOnHand: number;
   lowStockThreshold: number;
 }
+
+export interface PagedResponse<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+}
+
+export interface OrderQuery {
+  page?: number;
+  pageSize?: number;
+  status?: OrderStatus | 'All';
+}

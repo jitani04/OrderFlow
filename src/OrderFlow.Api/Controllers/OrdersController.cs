@@ -37,14 +37,46 @@ public sealed class OrdersController(
         return CreatedAtAction(nameof(GetById), new { id = order.Id }, OrderResponse.From(order));
     }
 
-    /// <summary>Lists orders, most recent first.</summary>
+    /// <summary>
+    /// Lists orders, most recent first, one page at a time.
+    /// </summary>
+    /// <param name="page">1-based. Values below 1 are treated as 1.</param>
+    /// <param name="pageSize">Clamped to at most 100.</param>
+    /// <param name="status">Optional filter: Pending, Confirmed or Rejected.</param>
+    /// <param name="cancellationToken">Cancels the request if the caller disconnects.</param>
+    /// <remarks>
+    /// Out-of-range paging values are clamped rather than rejected. A page number past the
+    /// end is a harmless client mistake and an empty page answers it honestly, whereas an
+    /// oversized page size must not be allowed to scan the whole table.
+    /// </remarks>
     [HttpGet]
-    [ProducesResponseType<IReadOnlyList<OrderResponse>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<OrderResponse>>> List(CancellationToken cancellationToken)
+    [ProducesResponseType<PagedResponse<OrderResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PagedResponse<OrderResponse>>> List(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = OrderQuery.DefaultPageSize,
+        [FromQuery] string? status = null,
+        CancellationToken cancellationToken = default)
     {
-        var all = await orders.ListAsync(cancellationToken);
+        OrderStatus? parsedStatus = null;
 
-        return Ok(all.Select(OrderResponse.From).ToList());
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            if (!Enum.TryParse<OrderStatus>(status, ignoreCase: true, out var value))
+            {
+                ModelState.AddModelError(
+                    nameof(status),
+                    $"Unknown status '{status}'. Expected one of: {string.Join(", ", Enum.GetNames<OrderStatus>())}.");
+
+                return ValidationProblem(ModelState);
+            }
+
+            parsedStatus = value;
+        }
+
+        var result = await orders.ListAsync(new OrderQuery(page, pageSize, parsedStatus), cancellationToken);
+
+        return Ok(PagedResponse<OrderResponse>.From(result, OrderResponse.From));
     }
 
     /// <summary>Gets one order with its lines and status.</summary>

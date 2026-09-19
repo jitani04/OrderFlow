@@ -1,23 +1,42 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api/client';
-import type { Order } from '../types';
+import type { Order, OrderStatus, PagedResponse } from '../types';
+
+const STATUS_FILTERS: (OrderStatus | 'All')[] = ['All', 'Confirmed', 'Rejected', 'Pending'];
+const PAGE_SIZE = 10;
 
 export function OrdersPanel({ refreshToken }: { refreshToken: number }) {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [result, setResult] = useState<PagedResponse<Order> | null>(null);
+  const [page, setPage] = useState(1);
+  const [status, setStatus] = useState<OrderStatus | 'All'>('All');
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
+    setBusy(true);
+
     try {
-      setOrders(await api.listOrders());
+      setResult(await api.listOrders({ page, pageSize: PAGE_SIZE, status }));
       setError(null);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Could not load orders.');
+    } finally {
+      setBusy(false);
     }
-  }, []);
+  }, [page, status]);
 
   useEffect(() => {
     void refresh();
   }, [refresh, refreshToken]);
+
+  // A new filter almost always means fewer pages, so staying on page 7 would show an
+  // empty table. Going back to the first page is what the user meant.
+  function changeStatus(next: OrderStatus | 'All') {
+    setStatus(next);
+    setPage(1);
+  }
+
+  const orders = result?.items ?? [];
 
   return (
     <div className="card">
@@ -30,7 +49,18 @@ export function OrdersPanel({ refreshToken }: { refreshToken: number }) {
       {error && <div className="alert error">{error}</div>}
 
       <div className="toolbar">
-        <button className="link" onClick={() => void refresh()}>Refresh</button>
+        {STATUS_FILTERS.map((option) => (
+          <button
+            key={option}
+            className="link"
+            style={status === option ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
+            onClick={() => changeStatus(option)}
+          >
+            {option}
+          </button>
+        ))}
+        <div className="spacer" />
+        <button className="link" disabled={busy} onClick={() => void refresh()}>Refresh</button>
       </div>
 
       <table>
@@ -61,11 +91,37 @@ export function OrdersPanel({ refreshToken }: { refreshToken: number }) {
           ))}
           {orders.length === 0 && (
             <tr>
-              <td colSpan={7} className="empty">No orders yet.</td>
+              <td colSpan={7} className="empty">
+                {busy ? 'Loading…' : 'No orders match this filter.'}
+              </td>
             </tr>
           )}
         </tbody>
       </table>
+
+      {result && result.totalCount > 0 && (
+        <div className="toolbar" style={{ marginTop: 14, marginBottom: 0 }}>
+          <span className="muted">
+            Page {result.page} of {result.totalPages} — {result.totalCount} order
+            {result.totalCount === 1 ? '' : 's'}
+          </span>
+          <div className="spacer" />
+          <button
+            className="link"
+            disabled={!result.hasPreviousPage || busy}
+            onClick={() => setPage((current) => current - 1)}
+          >
+            ‹ Previous
+          </button>
+          <button
+            className="link"
+            disabled={!result.hasNextPage || busy}
+            onClick={() => setPage((current) => current + 1)}
+          >
+            Next ›
+          </button>
+        </div>
+      )}
     </div>
   );
 }

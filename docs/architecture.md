@@ -185,6 +185,11 @@ rejected order still persists its lines.
 keeps local development to one command but races when there is more than one replica. The
 same image run with `--migrate-only` gives Kubernetes a single owner for the schema.
 
+**Order history is paged; the catalogue is not.** Orders only grow, so an unbounded list
+endpoint fails eventually and silently. Products are bounded and the order form needs all
+of them. Paging is offset-based, which suits a pager and degrades on deep pages; keyset
+paging would be the answer for an endless-scroll client.
+
 **Validation is duplicated on purpose.** FluentValidation exists for the error message;
 the domain enforces the same invariants for the guarantee. If the two ever disagree, the
 domain wins and the caller gets a 400 either way.
