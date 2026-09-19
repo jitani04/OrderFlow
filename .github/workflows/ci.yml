@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+# A new push to the same branch makes an in-flight run obsolete, so cancel it rather than
+# paying for both.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Build and test (.NET)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          # No version here on purpose: global.json pins the SDK, so CI and a developer
+          # machine cannot drift onto different compilers.
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          # Central Package Management means every version lives in one file, so it is the
+          # only thing that can invalidate this cache.
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        # TreatWarningsAsErrors is on in Directory.Build.props, so a warning fails here.
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        # The integration tests start a real PostgreSQL container via Testcontainers.
+        # ubuntu-latest runners ship with Docker, so nothing extra is needed.
+        run: dotnet test --project tests/OrderFlow.Tests/OrderFlow.Tests.csproj --no-build --configuration Release
+
+  frontend:
+    name: Build (admin panel)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/admin-panel
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/admin-panel/package-lock.json
+
+      - name: Install
+        # ci, not install: installs exactly the lockfile and fails if it is out of date.
+        run: npm ci
+
+      - name: Type-check and build
+        # `npm run build` runs `tsc -b` before vite, so this covers type errors too.
+        run: npm run build
+
+  images:
+    name: Build container images
+    runs-on: ubuntu-latest
+    # Only worth the minutes once the code that goes in them is known good.
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build admin panel image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/admin-panel.Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  manifests:
+    name: Validate Kubernetes manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Render with kustomize
+        # Catches a malformed or unreferenced manifest without needing a cluster.
+        run: kubectl kustomize deploy/k8s > /dev/null && echo "manifests render"

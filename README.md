@@ -1,5 +1,7 @@
 # OrderFlow
 
+[![CI](https://github.com/jitani04/OrderFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/jitani04/OrderFlow/actions/workflows/ci.yml)
+
 An order and inventory management API built with ASP.NET Core, EF Core and PostgreSQL,
 with a small React admin panel, containerized with Docker and deployable to Kubernetes.
 
