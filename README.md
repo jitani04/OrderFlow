@@ -251,7 +251,34 @@ dotnet test --project tests/OrderFlow.Tests/OrderFlow.Tests.csproj
 > `dotnet test` needs `--project` on .NET 10: the SDK dropped the VSTest bridge, so the
 > runner is selected in `global.json` and the CLI syntax changed.
 
-Unit tests cover the reservation rules and order state transitions with no database at all.
+**55 tests, about 10 seconds.** Docker must be running — the integration tests start a real
+PostgreSQL container.
+
+**Unit tests (32)** cover the reservation rules and order state transitions with no
+database at all, so they run in milliseconds.
+
+**Integration tests (23)** drive the real API in-process, against real PostgreSQL 16 via
+Testcontainers. A container rather than the in-memory provider on purpose: `FOR UPDATE`
+row locks, transaction isolation, foreign keys and unique indexes either do not exist in
+the in-memory provider or behave differently there. A test that cannot fail the way
+production fails is not testing much.
+
+### The test that matters
+
+`Concurrent_orders_for_the_same_product_cannot_oversell_it` creates a product with 10 on
+hand and fires **five simultaneous orders of 4 each**. Exactly two may succeed.
+
+It is worth confirming this test can actually fail. Delete the `FOR UPDATE` line from
+`OrderPlacementService.LockStockRowsAsync` and run the suite:
+
+```
+Expected confirmed to be 2 because only two lots of four fit into ten, but found 5.
+```
+
+All five orders commit and **20 units are sold from a stock of 10**, with no error
+anywhere — because under READ COMMITTED every request read "10 on hand" and none of those
+writes conflicted. Put the line back and it passes again. That is the difference the lock
+makes, and it is why a transaction alone is not enough.
 
 ---
 

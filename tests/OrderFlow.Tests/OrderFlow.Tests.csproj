@@ -3,15 +3,27 @@
   <PropertyGroup>
     <RootNamespace>OrderFlow.Tests</RootNamespace>
     <AssemblyName>OrderFlow.Tests</AssemblyName>
+    <!--
+      xUnit1051 asks for TestContext.Current.CancellationToken on every awaited call.
+      These integration tests are short HTTP round-trips against an in-process host, and
+      threading a token through ~25 call sites would bury the scenario each test describes
+      without making anything more reliable. Suppressed here only; the rule still applies
+      anywhere it would buy something.
+    -->
+    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="xunit.v3" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../src/OrderFlow.Api/OrderFlow.Api.csproj" />
     <ProjectReference Include="../../src/OrderFlow.Domain/OrderFlow.Domain.csproj" />
+    <ProjectReference Include="../../src/OrderFlow.Infrastructure/OrderFlow.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
