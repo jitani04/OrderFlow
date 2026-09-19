@@ -36,9 +36,12 @@ public sealed class OrderPlacementService(
 
             var stockByProduct = await LockStockRowsAsync(productIds, cancellationToken);
 
-            var pricesByProduct = await dbContext.Products
+            // Price and SKU in one read: the price is recorded on the order line, the SKU
+            // is used so a rejection names a product an admin recognises.
+            var catalogue = await dbContext.Products
                 .Where(product => productIds.Contains(product.Id))
-                .ToDictionaryAsync(product => product.Id, product => product.Price, cancellationToken);
+                .Select(product => new { product.Id, product.Price, product.Sku })
+                .ToDictionaryAsync(entry => entry.Id, cancellationToken);
 
             // "Out of stock" and "no such product" are different failures and must not be
             // conflated. A product that exists but cannot be filled produces a Rejected
@@ -46,7 +49,7 @@ public sealed class OrderPlacementService(
             // request. Persisting the latter also violates the order_items foreign key,
             // so it is caught here and surfaced as a 400.
             var unknownProductIds = productIds
-                .Where(id => !pricesByProduct.ContainsKey(id))
+                .Where(id => !catalogue.ContainsKey(id))
                 .ToArray();
 
             if (unknownProductIds.Length > 0)
@@ -61,10 +64,13 @@ public sealed class OrderPlacementService(
                 [.. lines.Select(line => new NewOrderLine(
                     line.ProductId,
                     line.Quantity,
-                    pricesByProduct.GetValueOrDefault(line.ProductId, 0m)))],
+                    catalogue[line.ProductId].Price))],
                 DateTimeOffset.UtcNow);
 
-            var outcome = StockReservationService.Reserve(order, stockByProduct);
+            var outcome = StockReservationService.Reserve(
+                order,
+                stockByProduct,
+                catalogue.ToDictionary(entry => entry.Key, entry => entry.Value.Sku));
 
             // The rejected order is persisted too. An order that could not be filled is a
             // fact worth keeping: it tells an admin what customers tried to buy and could

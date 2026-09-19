@@ -24,5 +24,6 @@ public sealed class ReservationOutcome
             : string.Join(
                 " ",
                 Shortages.Select(shortage =>
-                    $"Product {shortage.ProductId} requested {shortage.Requested}, available {shortage.Available}."));
+                    $"{shortage.Sku ?? shortage.ProductId.ToString()} requested {shortage.Requested}, " +
+                    $"available {shortage.Available}."));
 }

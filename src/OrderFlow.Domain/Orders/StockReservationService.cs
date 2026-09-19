@@ -13,6 +13,10 @@ public static class StockReservationService
     /// or Rejected accordingly.
     /// </summary>
     /// <param name="order">A Pending order. Resolved by this call.</param>
+    /// <param name="skusByProduct">
+    /// Optional. Lets the rejection reason name a product by SKU rather than by id, which
+    /// is what an admin reading the order actually needs.
+    /// </param>
     /// <param name="stockByProduct">
     /// Stock rows for the products the order names, already loaded and locked by the
     /// caller. A missing entry counts as zero available rather than an error, so an order
@@ -31,7 +35,10 @@ public static class StockReservationService
     /// locks that make it safe against concurrent orders — is the caller's job.
     /// </para>
     /// </remarks>
-    public static ReservationOutcome Reserve(Order order, IReadOnlyDictionary<Guid, StockLevel> stockByProduct)
+    public static ReservationOutcome Reserve(
+        Order order,
+        IReadOnlyDictionary<Guid, StockLevel> stockByProduct,
+        IReadOnlyDictionary<Guid, string>? skusByProduct = null)
     {
         ArgumentNullException.ThrowIfNull(order);
         ArgumentNullException.ThrowIfNull(stockByProduct);
@@ -48,13 +55,18 @@ public static class StockReservationService
         {
             if (!stockByProduct.TryGetValue(item.ProductId, out var stock))
             {
-                shortages.Add(new StockShortage(item.ProductId, item.Quantity, 0));
+                shortages.Add(new StockShortage(
+                    item.ProductId, item.Quantity, 0, skusByProduct?.GetValueOrDefault(item.ProductId)));
                 continue;
             }
 
             if (!stock.CanFulfil(item.Quantity))
             {
-                shortages.Add(new StockShortage(item.ProductId, item.Quantity, stock.QuantityOnHand));
+                shortages.Add(new StockShortage(
+                    item.ProductId,
+                    item.Quantity,
+                    stock.QuantityOnHand,
+                    skusByProduct?.GetValueOrDefault(item.ProductId)));
             }
         }
 

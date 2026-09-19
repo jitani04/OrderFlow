@@ -1,0 +1,95 @@
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --border: #e2e5ea;
+  --text: #1c2128;
+  --muted: #61708a;
+  --accent: #2f5fd0;
+  --accent-hover: #24499f;
+  --ok: #17734a;
+  --ok-bg: #e6f4ec;
+  --warn: #8a5a00;
+  --warn-bg: #fdf3e0;
+  --bad: #b02a2a;
+  --bad-bg: #fceded;
+
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text);
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; background: var(--bg); font-size: 14px; line-height: 1.5; }
+
+.app { max-width: 1100px; margin: 0 auto; padding: 24px 20px 64px; }
+
+header.masthead {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 20px;
+}
+.masthead h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+.masthead .subtitle { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
+.masthead .who { color: var(--muted); font-size: 13px; }
+
+nav.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 20px; flex-wrap: wrap; }
+nav.tabs button {
+  appearance: none; background: none; border: none; border-bottom: 2px solid transparent;
+  padding: 9px 14px; font: inherit; color: var(--muted); cursor: pointer;
+}
+nav.tabs button:hover { color: var(--text); }
+nav.tabs button[aria-current='true'] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 18px; margin-bottom: 16px; }
+.card h2 { font-size: 15px; margin: 0 0 4px; }
+.card .hint { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr:last-child td { border-bottom: none; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.badge.pending { background: var(--warn-bg); color: var(--warn); }
+.badge.confirmed, .badge.ok { background: var(--ok-bg); color: var(--ok); }
+.badge.rejected, .badge.low { background: var(--bad-bg); color: var(--bad); }
+
+button.primary {
+  background: var(--accent); color: #fff; border: none; border-radius: 6px;
+  padding: 9px 16px; font: inherit; font-weight: 600; cursor: pointer;
+}
+button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+button.link {
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  padding: 4px 9px; font: inherit; font-size: 12px; color: var(--text); cursor: pointer;
+}
+button.link:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+button.link:disabled { opacity: 0.4; cursor: not-allowed; }
+
+input, select {
+  font: inherit; padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--surface); color: var(--text); width: 100%;
+}
+input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+
+.field { margin-bottom: 14px; }
+.row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.row > * { flex: 1 1 160px; }
+.row > .shrink { flex: 0 0 auto; }
+
+.alert { border-radius: 6px; padding: 10px 12px; font-size: 13px; margin-bottom: 14px; }
+.alert.error { background: var(--bad-bg); color: var(--bad); }
+.alert.success { background: var(--ok-bg); color: var(--ok); }
+.alert.info { background: #eef2fb; color: var(--accent); }
+
+.login-shell { max-width: 380px; margin: 12vh auto; }
+.muted { color: var(--muted); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.empty { color: var(--muted); padding: 20px 0; text-align: center; font-size: 13px; }
+.toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.toolbar .spacer { flex: 1; }
+details.creator { margin-top: 18px; border-top: 1px solid var(--border); padding-top: 14px; }
+details.creator summary { cursor: pointer; font-weight: 600; font-size: 13px; }

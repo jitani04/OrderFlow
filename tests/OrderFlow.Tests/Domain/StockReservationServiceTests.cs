@@ -69,6 +69,31 @@ public class StockReservationServiceTests
     }
 
     [Fact]
+    public void Rejection_reason_names_the_sku_when_a_catalogue_is_supplied()
+    {
+        var order = OrderFor((Gadget, 4));
+
+        StockReservationService.Reserve(
+            order,
+            Stock(Level(Gadget, onHand: 1)),
+            new Dictionary<Guid, string> { [Gadget] = "OF-CHAIR-01" });
+
+        order.RejectionReason.Should().StartWith("OF-CHAIR-01 requested 4, available 1.",
+            "an admin reading a rejected order needs the product, not a raw id");
+        order.RejectionReason.Should().NotContain(Gadget.ToString());
+    }
+
+    [Fact]
+    public void Rejection_reason_falls_back_to_the_id_without_a_catalogue()
+    {
+        var order = OrderFor((Gadget, 4));
+
+        StockReservationService.Reserve(order, Stock(Level(Gadget, onHand: 1)));
+
+        order.RejectionReason.Should().Contain(Gadget.ToString());
+    }
+
+    [Fact]
     public void Reports_every_short_line_not_just_the_first()
     {
         var order = OrderFor((Widget, 5), (Gadget, 5));
