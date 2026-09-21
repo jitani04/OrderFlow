@@ -17,6 +17,27 @@ public sealed class LoginRequestValidator : AbstractValidator<LoginRequest>
     }
 }
 
+public sealed class RegisterRequestValidator : AbstractValidator<RegisterRequest>
+{
+    public RegisterRequestValidator()
+    {
+        RuleFor(request => request.Username)
+            .NotEmpty().WithMessage("Username is required.")
+            .MinimumLength(3).WithMessage("Username must be at least 3 characters.")
+            .MaximumLength(100)
+            .Matches("^[A-Za-z0-9._-]+$")
+            .WithMessage("Username may contain only letters, digits, dots, dashes and underscores.");
+
+        // Length is the rule that actually matters. Composition rules (a digit, a symbol)
+        // push people towards predictable substitutions and measurably weaker passwords,
+        // which is why current NIST guidance drops them in favour of a longer minimum.
+        RuleFor(request => request.Password)
+            .NotEmpty().WithMessage("Password is required.")
+            .MinimumLength(8).WithMessage("Password must be at least 8 characters.")
+            .MaximumLength(200);
+    }
+}
+
 public sealed class CreateProductRequestValidator : AbstractValidator<CreateProductRequest>
 {
     public CreateProductRequestValidator()
@@ -63,9 +84,11 @@ public sealed class PlaceOrderRequestValidator : AbstractValidator<PlaceOrderReq
 {
     public PlaceOrderRequestValidator()
     {
+        // Not required: it defaults to the authenticated account's name. Only its shape
+        // is checked, for the administrator case where it is supplied.
         RuleFor(request => request.CustomerName)
-            .NotEmpty().WithMessage("Customer name is required.")
-            .MaximumLength(200);
+            .MaximumLength(200)
+            .When(request => request.CustomerName is not null);
 
         RuleFor(request => request.Items)
             .NotEmpty().WithMessage("An order needs at least one item.");

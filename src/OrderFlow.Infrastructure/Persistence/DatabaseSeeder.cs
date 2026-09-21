@@ -31,7 +31,8 @@ public sealed class DatabaseSeeder(
     {
         var seed = options.Value;
 
-        await SeedAdminAsync(seed, cancellationToken);
+        await SeedUserAsync(seed.AdminUsername, seed.AdminPassword, Roles.Admin, cancellationToken);
+        await SeedUserAsync(seed.CustomerUsername, seed.CustomerPassword, Roles.Customer, cancellationToken);
 
         if (seed.SeedProducts)
         {
@@ -39,24 +40,24 @@ public sealed class DatabaseSeeder(
         }
     }
 
-    private async Task SeedAdminAsync(SeedOptions seed, CancellationToken cancellationToken)
+    private async Task SeedUserAsync(
+        string configuredUsername,
+        string password,
+        string role,
+        CancellationToken cancellationToken)
     {
-        var username = seed.AdminUsername.Trim().ToLowerInvariant();
+        var username = configuredUsername.Trim().ToLowerInvariant();
 
         if (await dbContext.Users.AnyAsync(user => user.Username == username, cancellationToken))
         {
             return;
         }
 
-        dbContext.Users.Add(new User(
-            Guid.NewGuid(),
-            username,
-            passwordHasher.Hash(seed.AdminPassword),
-            Roles.Admin));
+        dbContext.Users.Add(new User(Guid.NewGuid(), username, passwordHasher.Hash(password), role));
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        logger.LogInformation("Seeded admin user {Username}.", username);
+        logger.LogInformation("Seeded {Role} user {Username}.", role, username);
     }
 
     private async Task SeedCatalogueAsync(CancellationToken cancellationToken)

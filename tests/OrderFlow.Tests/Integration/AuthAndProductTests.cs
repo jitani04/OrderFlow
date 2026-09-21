@@ -10,12 +10,24 @@ namespace OrderFlow.Tests.Integration;
 public class AuthTests(OrderFlowApiFactory factory)
 {
     [Fact]
-    public async Task Endpoints_refuse_an_unauthenticated_caller()
+    public async Task The_catalogue_is_readable_without_signing_in()
     {
         var client = factory.CreateClient();
 
-        (await client.GetAsync("/api/products")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await client.GetAsync("/api/products")).StatusCode.Should().Be(HttpStatusCode.OK,
+            "a storefront must show the catalogue before anyone signs in");
+    }
+
+    [Fact]
+    public async Task Everything_else_refuses_an_unauthenticated_caller()
+    {
+        var client = factory.CreateClient();
+
         (await client.GetAsync("/api/orders")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await client.PostAsJsonAsync("/api/orders", new { items = Array.Empty<object>() }))
+            .StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await client.PostAsJsonAsync("/api/products", new { sku = "X", name = "X", price = 1, quantityOnHand = 1, lowStockThreshold = 0 }))
+            .StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     [Theory]
@@ -50,7 +62,10 @@ public class AuthTests(OrderFlowApiFactory factory)
         client.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", original + "x");
 
-        (await client.GetAsync("/api/products")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        // Checked against an endpoint that requires authentication. On an [AllowAnonymous]
+        // endpoint such as /api/products a bad token is simply ignored and the caller is
+        // treated as anonymous, so it would return 200 and prove nothing.
+        (await client.GetAsync("/api/orders")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     [Fact]

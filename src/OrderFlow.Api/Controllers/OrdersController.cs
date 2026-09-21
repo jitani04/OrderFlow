@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using OrderFlow.Api.Infrastructure;
 using OrderFlow.Api.Models;
 using OrderFlow.Domain.Orders;
 
@@ -17,6 +18,8 @@ public sealed class OrdersController(
     /// Places an order. Stock is checked and deducted in a single transaction, so the
     /// response already says whether the order was Confirmed or Rejected.
     /// </summary>
+    /// <param name="request">The lines to order, and optionally a customer name.</param>
+    /// <param name="cancellationToken">Cancels the request if the caller disconnects.</param>
     /// <remarks>
     /// A rejected order is still created and returned with 201, because the order was
     /// recorded successfully — the request did not fail. The outcome is in the body, where
@@ -29,8 +32,18 @@ public sealed class OrdersController(
         PlaceOrderRequest request,
         CancellationToken cancellationToken)
     {
+        var customerId = CurrentUser.IdOf(User);
+        var username = CurrentUser.UsernameOf(User) ?? "unknown";
+
+        // Only an administrator may name someone else. For a customer the name is taken
+        // from their own account, so an order cannot be placed under another person's name.
+        var customerName = CurrentUser.IsAdmin(User) && !string.IsNullOrWhiteSpace(request.CustomerName)
+            ? request.CustomerName!
+            : username;
+
         var order = await placementService.PlaceAsync(
-            request.CustomerName,
+            customerId,
+            customerName,
             [.. request.Items.Select(item => new OrderLineRequest(item.ProductId, item.Quantity))],
             cancellationToken);
 
@@ -45,9 +58,14 @@ public sealed class OrdersController(
     /// <param name="status">Optional filter: Pending, Confirmed or Rejected.</param>
     /// <param name="cancellationToken">Cancels the request if the caller disconnects.</param>
     /// <remarks>
+    /// An administrator sees every order; a customer sees only their own. The restriction
+    /// is decided here from the token, never from a query parameter — a caller-supplied
+    /// "customerId" filter would be trivially changed to somebody else's.
+    /// <para>
     /// Out-of-range paging values are clamped rather than rejected. A page number past the
     /// end is a harmless client mistake and an empty page answers it honestly, whereas an
     /// oversized page size must not be allowed to scan the whole table.
+    /// </para>
     /// </remarks>
     [HttpGet]
     [ProducesResponseType<PagedResponse<OrderResponse>>(StatusCodes.Status200OK)]
@@ -74,12 +92,22 @@ public sealed class OrdersController(
             parsedStatus = value;
         }
 
-        var result = await orders.ListAsync(new OrderQuery(page, pageSize, parsedStatus), cancellationToken);
+        var restrictTo = CurrentUser.IsAdmin(User) ? null : CurrentUser.IdOf(User);
+
+        var result = await orders.ListAsync(
+            new OrderQuery(page, pageSize, parsedStatus, restrictTo),
+            cancellationToken);
 
         return Ok(PagedResponse<OrderResponse>.From(result, OrderResponse.From));
     }
 
     /// <summary>Gets one order with its lines and status.</summary>
+    /// <param name="id">The order to fetch.</param>
+    /// <param name="cancellationToken">Cancels the request if the caller disconnects.</param>
+    /// <remarks>
+    /// A customer asking for somebody else's order gets 404, not 403. A 403 would confirm
+    /// the order exists, which is itself something they should not learn.
+    /// </remarks>
     [HttpGet("{id:guid}")]
     [ProducesResponseType<OrderResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -87,6 +115,21 @@ public sealed class OrdersController(
     {
         var order = await orders.GetAsync(id, cancellationToken);
 
-        return order is null ? NotFound() : Ok(OrderResponse.From(order));
+        if (order is null)
+        {
+            return NotFound();
+        }
+
+        if (!CurrentUser.IsAdmin(User))
+        {
+            var callerId = CurrentUser.IdOf(User);
+
+            if (callerId is null || !order.BelongsTo(callerId.Value))
+            {
+                return NotFound();
+            }
+        }
+
+        return Ok(OrderResponse.From(order));
     }
 }

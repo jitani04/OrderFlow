@@ -24,6 +24,29 @@ internal static class ApiClient
         return client;
     }
 
+    /// <summary>Registers a brand new customer and returns a client signed in as them.</summary>
+    public static async Task<(HttpClient Client, string Username)> NewCustomerAsync(
+        this OrderFlowApiFactory factory)
+    {
+        var client = factory.CreateClient();
+        var username = $"cust{Guid.NewGuid():N}"[..16];
+
+        var response = await client.PostAsJsonAsync("/auth/register", new
+        {
+            username,
+            password = "customer-password",
+        });
+
+        response.EnsureSuccessStatusCode();
+
+        var login = await response.Content.ReadFromJsonAsync<LoginBody>();
+
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", login!.AccessToken);
+
+        return (client, login.Username);
+    }
+
     /// <summary>
     /// Creates a product with a unique SKU and known stock. Integration tests share one
     /// database, so each scenario works against its own product rather than the seeded

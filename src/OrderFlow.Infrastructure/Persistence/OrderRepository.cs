@@ -15,6 +15,13 @@ public sealed class OrderRepository(OrderFlowDbContext dbContext) : IOrderReposi
             filtered = filtered.Where(order => order.Status == status);
         }
 
+        // Applied here rather than filtered after the fact, so the restriction reaches the
+        // database and the total count reflects it too.
+        if (query.CustomerId is { } customerId)
+        {
+            filtered = filtered.Where(order => order.CustomerId == customerId);
+        }
+
         // Counted before paging, and without the Include: the caller needs the total number
         // of matching orders, and joining the lines in would make the database do work whose
         // result is thrown away.

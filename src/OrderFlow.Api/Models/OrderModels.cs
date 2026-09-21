@@ -4,7 +4,12 @@ namespace OrderFlow.Api.Models;
 
 public sealed record PlaceOrderRequest
 {
-    public required string CustomerName { get; init; }
+    /// <summary>
+    /// Optional. Ignored for a customer, who is always recorded under their own account
+    /// name — otherwise anyone could place an order in someone else's name. An
+    /// administrator may set it to record an order taken on a customer's behalf.
+    /// </summary>
+    public string? CustomerName { get; init; }
 
     public required IReadOnlyList<PlaceOrderItem> Items { get; init; }
 }

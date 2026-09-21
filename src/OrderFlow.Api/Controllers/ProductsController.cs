@@ -17,7 +17,13 @@ public sealed class ProductsController(
     ILogger<ProductsController> logger) : ControllerBase
 {
     /// <summary>Lists every product with its current stock.</summary>
+    /// <remarks>
+    /// Anonymous: a storefront has to show the catalogue before anyone signs in. Stock
+    /// figures are public here, which suits a shop — a service that treated inventory
+    /// levels as commercially sensitive would project this down to "in stock" or not.
+    /// </remarks>
     [HttpGet]
+    [AllowAnonymous]
     [ProducesResponseType<IReadOnlyList<ProductResponse>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<ProductResponse>>> List(CancellationToken cancellationToken)
     {
@@ -28,6 +34,7 @@ public sealed class ProductsController(
 
     /// <summary>Gets one product with its current stock.</summary>
     [HttpGet("{id:guid}")]
+    [AllowAnonymous]
     [ProducesResponseType<ProductResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ProductResponse>> GetById(Guid id, CancellationToken cancellationToken)

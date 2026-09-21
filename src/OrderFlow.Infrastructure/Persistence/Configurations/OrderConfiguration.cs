@@ -29,6 +29,14 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
 
         builder.Property(order => order.CreatedAt).IsRequired();
 
+        // No foreign key to users on purpose: an order is a historical record and must
+        // survive the account that placed it being removed. CustomerName is already
+        // captured on the row, so the order stays readable either way.
+        builder.Property(order => order.CustomerId);
+
+        // Every customer's order list filters on this, so it earns an index.
+        builder.HasIndex(order => order.CustomerId);
+
         builder.HasMany(order => order.Items)
             .WithOne()
             .HasForeignKey(item => item.OrderId)

@@ -20,7 +20,7 @@ public class StockReservationServiceTests
         levels.ToDictionary(level => level.ProductId);
 
     private static Order OrderFor(params (Guid ProductId, int Quantity)[] lines) =>
-        Order.Place(
+        Order.Place(customerId: null, 
             "Ada Lovelace",
             [.. lines.Select(line => new NewOrderLine(line.ProductId, line.Quantity, 10m))],
             PlacedAt);

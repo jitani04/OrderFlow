@@ -16,9 +16,10 @@ public class Order
         CustomerName = string.Empty;
     }
 
-    private Order(string customerName, DateTimeOffset placedAt)
+    private Order(Guid? customerId, string customerName, DateTimeOffset placedAt)
     {
         Id = Guid.NewGuid();
+        CustomerId = customerId;
         CustomerName = customerName;
         Status = OrderStatus.Pending;
         CreatedAt = placedAt;
@@ -26,6 +27,20 @@ public class Order
 
     public Guid Id { get; private set; }
 
+    /// <summary>
+    /// The account that placed this order, if any.
+    /// </summary>
+    /// <remarks>
+    /// Nullable rather than required. Orders placed before customer accounts existed have
+    /// none, and an admin may record an order on someone's behalf. A null here simply means
+    /// no customer can claim it, which is the safe default for an ownership check.
+    /// </remarks>
+    public Guid? CustomerId { get; private set; }
+
+    /// <summary>
+    /// The name as it stood when the order was placed, captured rather than looked up, so
+    /// renaming an account does not rewrite order history.
+    /// </summary>
     public string CustomerName { get; private set; }
 
     public OrderStatus Status { get; private set; }
@@ -44,10 +59,24 @@ public class Order
     public decimal TotalAmount => _items.Sum(item => item.LineTotal);
 
     /// <summary>
+    /// Whether <paramref name="userId"/> placed this order.
+    /// </summary>
+    /// <remarks>
+    /// An unowned order belongs to nobody, so this is false for every caller rather than
+    /// true for all of them — the difference between an order no customer can see and one
+    /// every customer can.
+    /// </remarks>
+    public bool BelongsTo(Guid userId) => CustomerId == userId;
+
+    /// <summary>
     /// Creates a Pending order. The only way to construct one, so an order can never exist
     /// without a customer or without at least one line.
     /// </summary>
-    public static Order Place(string customerName, IReadOnlyCollection<NewOrderLine> lines, DateTimeOffset placedAt)
+    public static Order Place(
+        Guid? customerId,
+        string customerName,
+        IReadOnlyCollection<NewOrderLine> lines,
+        DateTimeOffset placedAt)
     {
         if (string.IsNullOrWhiteSpace(customerName))
         {
@@ -64,7 +93,7 @@ public class Order
             throw new DomainException("An order cannot list the same product on more than one line.");
         }
 
-        var order = new Order(customerName.Trim(), placedAt);
+        var order = new Order(customerId, customerName.Trim(), placedAt);
 
         foreach (var line in lines)
         {

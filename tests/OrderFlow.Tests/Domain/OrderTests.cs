@@ -10,12 +10,12 @@ public class OrderTests
     private static readonly DateTimeOffset PlacedAt = new(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
 
     private static Order APendingOrder() =>
-        Order.Place("Ada Lovelace", [new NewOrderLine(Guid.NewGuid(), 2, 9.99m)], PlacedAt);
+        Order.Place(customerId: null, "Ada Lovelace", [new NewOrderLine(Guid.NewGuid(), 2, 9.99m)], PlacedAt);
 
     [Fact]
     public void Place_starts_the_order_pending_and_totals_its_lines()
     {
-        var order = Order.Place(
+        var order = Order.Place(customerId: null, 
             "Ada Lovelace",
             [
                 new NewOrderLine(Guid.NewGuid(), 2, 10.00m),
@@ -33,7 +33,7 @@ public class OrderTests
     [Fact]
     public void Place_trims_the_customer_name()
     {
-        var order = Order.Place("  Ada Lovelace  ", [new NewOrderLine(Guid.NewGuid(), 1, 1m)], PlacedAt);
+        var order = Order.Place(customerId: null, "  Ada Lovelace  ", [new NewOrderLine(Guid.NewGuid(), 1, 1m)], PlacedAt);
 
         order.CustomerName.Should().Be("Ada Lovelace");
     }
@@ -43,7 +43,7 @@ public class OrderTests
     [InlineData("   ")]
     public void Place_requires_a_customer_name(string customerName)
     {
-        var place = () => Order.Place(customerName, [new NewOrderLine(Guid.NewGuid(), 1, 1m)], PlacedAt);
+        var place = () => Order.Place(customerId: null, customerName, [new NewOrderLine(Guid.NewGuid(), 1, 1m)], PlacedAt);
 
         place.Should().Throw<DomainException>().WithMessage("*customer name*");
     }
@@ -51,7 +51,7 @@ public class OrderTests
     [Fact]
     public void Place_requires_at_least_one_line()
     {
-        var place = () => Order.Place("Ada Lovelace", [], PlacedAt);
+        var place = () => Order.Place(customerId: null, "Ada Lovelace", [], PlacedAt);
 
         place.Should().Throw<DomainException>().WithMessage("*at least one line*");
     }
@@ -61,7 +61,7 @@ public class OrderTests
     {
         var productId = Guid.NewGuid();
 
-        var place = () => Order.Place(
+        var place = () => Order.Place(customerId: null, 
             "Ada Lovelace",
             [new NewOrderLine(productId, 1, 1m), new NewOrderLine(productId, 2, 1m)],
             PlacedAt);
@@ -74,7 +74,7 @@ public class OrderTests
     [InlineData(-1)]
     public void Place_requires_a_positive_quantity(int quantity)
     {
-        var place = () => Order.Place("Ada", [new NewOrderLine(Guid.NewGuid(), quantity, 1m)], PlacedAt);
+        var place = () => Order.Place(customerId: null, "Ada", [new NewOrderLine(Guid.NewGuid(), quantity, 1m)], PlacedAt);
 
         place.Should().Throw<DomainException>().WithMessage("*quantity*");
     }
@@ -82,9 +82,31 @@ public class OrderTests
     [Fact]
     public void Place_rejects_a_negative_unit_price()
     {
-        var place = () => Order.Place("Ada", [new NewOrderLine(Guid.NewGuid(), 1, -0.01m)], PlacedAt);
+        var place = () => Order.Place(customerId: null, "Ada", [new NewOrderLine(Guid.NewGuid(), 1, -0.01m)], PlacedAt);
 
         place.Should().Throw<DomainException>().WithMessage("*unit price*");
+    }
+
+    [Fact]
+    public void An_order_belongs_to_the_account_that_placed_it()
+    {
+        var customerId = Guid.NewGuid();
+
+        var order = Order.Place(customerId, "Ada Lovelace", [new NewOrderLine(Guid.NewGuid(), 1, 1m)], PlacedAt);
+
+        order.CustomerId.Should().Be(customerId);
+        order.BelongsTo(customerId).Should().BeTrue();
+        order.BelongsTo(Guid.NewGuid()).Should().BeFalse();
+    }
+
+    [Fact]
+    public void An_order_with_no_account_belongs_to_nobody()
+    {
+        var order = Order.Place(customerId: null, "Walk-in", [new NewOrderLine(Guid.NewGuid(), 1, 1m)], PlacedAt);
+
+        order.CustomerId.Should().BeNull();
+        order.BelongsTo(Guid.NewGuid()).Should().BeFalse(
+            "an unowned order must not be visible to every customer");
     }
 
     [Fact]

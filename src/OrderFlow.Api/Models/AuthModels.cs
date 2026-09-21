@@ -15,3 +15,12 @@ public sealed record LoginResponse(
     DateTimeOffset ExpiresAt,
     string Username,
     string Role);
+
+public sealed record RegisterRequest
+{
+    /// <example>ada</example>
+    public required string Username { get; init; }
+
+    /// <example>correct-horse-battery</example>
+    public required string Password { get; init; }
+}

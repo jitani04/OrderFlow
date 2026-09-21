@@ -9,5 +9,16 @@ public sealed class UserRepository(OrderFlowDbContext dbContext) : IUserReposito
     public Task<User?> FindByUsernameAsync(string username, CancellationToken cancellationToken) =>
         dbContext.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(user => user.Username == username.Trim().ToLower(), cancellationToken);
+            .FirstOrDefaultAsync(user => user.Username == Normalise(username), cancellationToken);
+
+    public Task<bool> UsernameExistsAsync(string username, CancellationToken cancellationToken) =>
+        dbContext.Users.AnyAsync(user => user.Username == Normalise(username), cancellationToken);
+
+    public void Add(User user) => dbContext.Users.Add(user);
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken) =>
+        dbContext.SaveChangesAsync(cancellationToken);
+
+    /// <summary>Matches the normalisation the User constructor applies.</summary>
+    private static string Normalise(string username) => username.Trim().ToLower();
 }

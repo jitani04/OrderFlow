@@ -10,7 +10,15 @@ namespace OrderFlow.Domain.Orders;
 /// </remarks>
 public interface IOrderPlacementService
 {
+    /// <param name="customerId">
+    /// The account placing the order, or null when no account owns it. Ownership is what
+    /// lets a customer see their own orders and nobody else's.
+    /// </param>
+    /// <param name="customerName">Captured on the order as it stands now.</param>
+    /// <param name="lines">What is being ordered.</param>
+    /// <param name="cancellationToken">Cancels the request if the caller disconnects.</param>
     Task<Order> PlaceAsync(
+        Guid? customerId,
         string customerName,
         IReadOnlyCollection<OrderLineRequest> lines,
         CancellationToken cancellationToken);

@@ -14,6 +14,7 @@ public sealed class OrderPlacementService(
     ILogger<OrderPlacementService> logger) : IOrderPlacementService
 {
     public async Task<Order> PlaceAsync(
+        Guid? customerId,
         string customerName,
         IReadOnlyCollection<OrderLineRequest> lines,
         CancellationToken cancellationToken)
@@ -60,6 +61,7 @@ public sealed class OrderPlacementService(
 
             // Price comes from the catalogue, never from the caller.
             var order = Order.Place(
+                customerId,
                 customerName,
                 [.. lines.Select(line => new NewOrderLine(
                     line.ProductId,
