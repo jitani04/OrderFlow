@@ -144,12 +144,12 @@ minikube addons enable ingress
 
 docker compose -f deploy/compose/docker-compose.yml build
 docker tag orderflow-api:latest         orderflow-api:v1
-docker tag orderflow-admin-panel:latest orderflow-admin-panel:v1
+docker tag orderflow-web:latest orderflow-web:v1
 minikube image load orderflow-api:v1
-minikube image load orderflow-admin-panel:v1
+minikube image load orderflow-web:v1
 
 kubectl apply -k deploy/k8s
-kubectl -n orderflow port-forward svc/orderflow-admin-panel 8080:80
+kubectl -n orderflow port-forward svc/orderflow-web 8080:80
 ```
 
 That brings up PostgreSQL as a StatefulSet, runs schema migrations as a **Job**, then rolls
@@ -452,7 +452,7 @@ src/
 tests/
   OrderFlow.Tests/           unit and integration tests
 web/
-  admin-panel/               React + TypeScript + Vite
+  frontend/                  React + TypeScript + Vite (shop + admin)
 deploy/
   docker/                    Dockerfile (API) + admin panel image and nginx template
   compose/                   local docker-compose stack

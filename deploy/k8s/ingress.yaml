@@ -1,5 +1,5 @@
-# Routes everything to the panel, which serves the SPA and proxies /api and /auth to the
-# API through its nginx config. One hostname, one origin, so CORS never applies.
+# Routes everything to the front end, which serves the SPA and proxies /api and /auth to
+# the API through its nginx config. One hostname, one origin, so CORS never applies.
 #
 # On AWS this is usually the AWS Load Balancer Controller instead of ingress-nginx, giving
 # an ALB; see docs/deployment.md.
@@ -20,6 +20,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: orderflow-admin-panel
+                name: orderflow-web
                 port:
                   number: 80

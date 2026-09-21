@@ -51,12 +51,12 @@ services:
       retries: 10
       start_period: 30s
 
-  admin-panel:
-    container_name: orderflow-admin-panel
+  web:
+    container_name: orderflow-web
     restart: unless-stopped
     build:
       context: ../..
-      dockerfile: deploy/docker/admin-panel.Dockerfile
+      dockerfile: deploy/docker/frontend.Dockerfile
       args:
         # Empty means relative URLs, which nginx proxies to the API. The browser then only
         # ever talks to one origin, so CORS does not apply.

@@ -19,8 +19,14 @@ docker compose -f deploy/compose/docker-compose.yml up --build
 | Swagger UI | <http://localhost:5100/swagger> |
 | PostgreSQL | `localhost:5433` |
 
-The API migrates and seeds itself at startup, so there is no setup step. Sign in with
-`admin` / `admin123`.
+The API migrates and seeds itself at startup, so there is no setup step. Browse the shop
+without signing in; sign in as `customer` / `customer123` to check out, or `admin` /
+`admin123` for the admin area.
+
+> If a compose **service is renamed**, the container from the old name keeps running and
+> holds its published port, so the new one fails to start with "port is already allocated".
+> Worse, requests still reach the stale container, so a smoke test can pass against old
+> code. `docker compose down --remove-orphans` is the fix.
 
 ---
 
@@ -35,11 +41,11 @@ minikube addons enable ingress
 # Build the images, then tag them for the cluster.
 docker compose -f deploy/compose/docker-compose.yml build
 docker tag orderflow-api:latest          orderflow-api:v1
-docker tag orderflow-admin-panel:latest  orderflow-admin-panel:v1
+docker tag orderflow-web:latest  orderflow-web:v1
 
 # minikube has its own container runtime; images must be loaded into it.
 minikube image load orderflow-api:v1
-minikube image load orderflow-admin-panel:v1
+minikube image load orderflow-web:v1
 
 kubectl apply -k deploy/k8s
 ```
@@ -50,7 +56,7 @@ Watch it come up:
 kubectl -n orderflow rollout status statefulset/postgres
 kubectl -n orderflow wait --for=condition=complete job/orderflow-migrate --timeout=180s
 kubectl -n orderflow rollout status deployment/orderflow-api
-kubectl -n orderflow rollout status deployment/orderflow-admin-panel
+kubectl -n orderflow rollout status deployment/orderflow-web
 ```
 
 Reach it either through the ingress:
@@ -63,7 +69,7 @@ echo "$(minikube ip) orderflow.local" | sudo tee -a /etc/hosts
 or without touching `/etc/hosts`:
 
 ```bash
-kubectl -n orderflow port-forward svc/orderflow-admin-panel 8080:80
+kubectl -n orderflow port-forward svc/orderflow-web 8080:80
 # then open http://localhost:8080
 ```
 
@@ -90,7 +96,7 @@ kubectl -n orderflow set image deployment/orderflow-api api=orderflow-api:v2
 | `postgres/` | StatefulSet with a PersistentVolumeClaim, plus a headless Service |
 | `api/migration-job.yaml` | Runs `--migrate-only` once before the Deployment |
 | `api/` | Deployment (2 replicas) and ClusterIP Service |
-| `admin-panel/` | Deployment (2 replicas) and ClusterIP Service |
+| `web/` | Deployment (2 replicas) and ClusterIP Service |
 | `ingress.yaml` | Single public entry point |
 
 **Why a migration Job.** The API can migrate at startup, and does under compose. With two

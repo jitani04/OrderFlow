@@ -12,8 +12,8 @@ resources:
   - api/migration-job.yaml
   - api/deployment.yaml
   - api/service.yaml
-  - admin-panel/deployment.yaml
-  - admin-panel/service.yaml
+  - web/deployment.yaml
+  - web/service.yaml
   - ingress.yaml
 
 labels:

@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: orderflow-admin-panel
+  name: orderflow-web
   namespace: orderflow
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: orderflow-admin-panel
+      app: orderflow-web
   template:
     metadata:
       labels:
-        app: orderflow-admin-panel
+        app: orderflow-web
     spec:
       containers:
-        - name: admin-panel
-          image: orderflow-admin-panel:v1
+        - name: web
+          image: orderflow-web:v1
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

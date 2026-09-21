@@ -49,11 +49,11 @@ jobs:
         run: dotnet test --project tests/OrderFlow.Tests/OrderFlow.Tests.csproj --no-build --configuration Release
 
   frontend:
-    name: Build (admin panel)
+    name: Build (front end)
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: web/admin-panel
+        working-directory: web/frontend
     steps:
       - uses: actions/checkout@v5
 
@@ -61,7 +61,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: web/admin-panel/package-lock.json
+          cache-dependency-path: web/frontend/package-lock.json
 
       - name: Install
         # ci, not install: installs exactly the lockfile and fails if it is out of date.
@@ -90,11 +90,11 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build admin panel image
+      - name: Build front end image
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: deploy/docker/admin-panel.Dockerfile
+          file: deploy/docker/frontend.Dockerfile
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
