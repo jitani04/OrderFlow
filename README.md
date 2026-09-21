@@ -2,8 +2,9 @@
 
 [![CI](https://github.com/jitani04/OrderFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/jitani04/OrderFlow/actions/workflows/ci.yml)
 
-An order and inventory management API built with ASP.NET Core, EF Core and PostgreSQL,
-with a small React admin panel, containerized with Docker and deployable to Kubernetes.
+A full-stack order and inventory management application: an ASP.NET Core API over
+PostgreSQL with a React and TypeScript front end, containerized with Docker and deployable
+to Kubernetes.
 
 The interesting part is **order placement**: checking stock, deducting it and recording the
 order all happen inside a single database transaction with the stock rows locked, so two
