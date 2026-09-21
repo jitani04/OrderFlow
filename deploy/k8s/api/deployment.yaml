@@ -22,7 +22,7 @@ spec:
         runAsNonRoot: true
       containers:
         - name: api
-          image: orderflow-api:v1
+          image: orderflow-api:v2
           # An explicit version rather than :latest. With :latest and IfNotPresent, a node
           # that already holds an image by that tag keeps running the old one — which is
           # exactly what happened while building this, and it is silent. Bump the tag to

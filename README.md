@@ -143,10 +143,10 @@ minikube start --driver=docker
 minikube addons enable ingress
 
 docker compose -f deploy/compose/docker-compose.yml build
-docker tag orderflow-api:latest         orderflow-api:v1
-docker tag orderflow-web:latest orderflow-web:v1
-minikube image load orderflow-api:v1
-minikube image load orderflow-web:v1
+docker tag orderflow-api:latest  orderflow-api:v2
+docker tag orderflow-web:latest  orderflow-web:v2
+minikube image load orderflow-api:v2
+minikube image load orderflow-web:v2
 
 kubectl apply -k deploy/k8s
 kubectl -n orderflow port-forward svc/orderflow-web 8080:80

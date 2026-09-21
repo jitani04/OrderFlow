@@ -23,7 +23,7 @@ spec:
         runAsNonRoot: true
       containers:
         - name: migrate
-          image: orderflow-api:v1
+          image: orderflow-api:v2
           imagePullPolicy: IfNotPresent
           args: ["--migrate-only"]
           envFrom:
