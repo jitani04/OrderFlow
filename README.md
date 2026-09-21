@@ -14,28 +14,35 @@ customers racing for the last item cannot both win.
 
 ## Screenshots
 
-| Placing an order | Rejected for insufficient stock |
+| Shop — browse without signing in | Cart |
 |---|---|
-| ![Confirmed order](docs/screenshots/02-order-confirmed.png) | ![Rejected order](docs/screenshots/03-order-rejected.png) |
+| ![Shop](docs/screenshots/01-shop.png) | ![Cart](docs/screenshots/02-cart.png) |
 
-| Orders — filtered and paged | Products and stock |
+| Order confirmed | Order rejected — all-or-nothing |
 |---|---|
-| ![Orders](docs/screenshots/04-orders.png) | ![Products](docs/screenshots/05-products.png) |
+| ![Confirmed](docs/screenshots/04-order-confirmed.png) | ![Rejected](docs/screenshots/05-order-rejected.png) |
 
-Editing stock sends the version it was based on, so a concurrent change is refused rather
-than silently overwritten:
-
-![Stock edited](docs/screenshots/06-stock-edited.png)
+| A customer's own orders | Admin — every order |
+|---|---|
+| ![My orders](docs/screenshots/06-my-orders.png) | ![Admin](docs/screenshots/07-admin.png) |
 
 ---
 
 ## What it does
 
-- Keeps a catalogue of products, each with a stock level and a low-stock threshold.
-- Accepts orders. An order is filled completely or not at all: if any line is short, no
-  stock moves and the order comes back `Rejected` naming what was missing.
-- Authenticates with JWT bearer tokens against a seeded admin account.
-- Validates every request and returns RFC 7807 problem details when something is wrong.
+**A storefront** where anyone can browse the catalogue, and a signed-in customer can fill
+a cart and check out.
+
+**An admin area** for the catalogue, stock levels and every order in the system.
+
+Underneath:
+
+- Products, each with a stock level and a low-stock threshold.
+- Orders that are filled completely or not at all: if any line is short, no stock moves
+  and the order comes back `Rejected` naming what was missing.
+- JWT bearer auth with two roles. Customers register themselves and see only their own
+  orders; admins manage the catalogue and see everything.
+- Every request validated, with RFC 7807 problem details when something is wrong.
 
 ---
 
@@ -45,8 +52,8 @@ A single service, cleanly layered. Dependencies point inward — `Api` and `Infr
 both know about `Domain`; `Domain` knows about nothing.
 
 ```
-  React admin panel  ──▶  ASP.NET Core Web API  ──▶  PostgreSQL
-                          (JWT auth, EF Core)
+  React front end  ──▶  ASP.NET Core Web API  ──▶  PostgreSQL
+  (shop + admin)        (JWT auth, EF Core)
 ```
 
 | Project | Holds | Depends on |
@@ -118,11 +125,13 @@ startup, so there is no separate setup step.
 
 ### Seeded credentials
 
-| Username | Password | Role |
-|---|---|---|
-| `admin` | `admin123` | Admin |
+| Username | Password | Role | Can |
+|---|---|---|---|
+| `admin` | `admin123` | Admin | Manage the catalogue, see every order |
+| `customer` | `customer123` | Customer | Shop, and see only their own orders |
 
-Both are configurable under the `Seed` section and are overridden from a Secret in
+Anyone can also register a new customer account from the shop. Both seeded accounts are
+configurable under the `Seed` section and are overridden from a Secret in
 Kubernetes. The password is hashed with BCrypt at seed time and never stored as written.
 
 ### On Kubernetes
@@ -192,19 +201,20 @@ Step 4 returns:
 
 ## API surface
 
-All endpoints except `POST /auth/login` require a bearer token.
+Everything requires a bearer token except registration, login and reading the catalogue.
 
 | Method | Path | Role | Purpose |
 |---|---|---|---|
+| `POST` | `/auth/register` | anonymous | Create a customer account and sign in |
 | `POST` | `/auth/login` | anonymous | Exchange credentials for a JWT |
 | `GET` | `/auth/me` | any | Confirm a token is still valid |
-| `GET` | `/api/products` | any | List products with current stock |
-| `GET` | `/api/products/{id}` | any | One product with its stock |
+| `GET` | `/api/products` | **anonymous** | List products with current stock |
+| `GET` | `/api/products/{id}` | **anonymous** | One product with its stock |
 | `POST` | `/api/products` | Admin | Create a product and its opening stock |
 | `PUT` | `/api/products/{id}/stock` | Admin | Replace a product's stock record (requires `If-Match`) |
 | `POST` | `/api/orders` | any | Place an order; returns Confirmed or Rejected |
-| `GET` | `/api/orders` | any | List orders, newest first — paged, filterable by status |
-| `GET` | `/api/orders/{id}` | any | One order with its lines |
+| `GET` | `/api/orders` | any | Orders — paged and filterable. Admin sees all; a customer sees only their own |
+| `GET` | `/api/orders/{id}` | any | One order. A customer asking for someone else's gets 404 |
 | `GET` | `/health/live` | anonymous | Liveness probe |
 | `GET` | `/health/ready` | anonymous | Readiness probe (checks the database) |
 
@@ -287,6 +297,23 @@ to buy and could not get, which is the signal that drives restocking. It returns
 A product that exists but is short produces a `Rejected` order. A product id that does not
 exist at all is a bad request and returns `400`. Conflating them also violates the
 `order_items` foreign key, since a rejected order still persists its lines.
+
+### Why a customer sees 404, not 403, for someone else's order
+
+Returning 403 would confirm the order exists. For a resource a caller has no business
+knowing about, "not found" is the honest answer — it leaks nothing about what other people
+have bought.
+
+The same reasoning drives the list endpoint. `GET /api/orders` scopes to the caller from
+their **token**, never from a query parameter: a `customerId` filter supplied by the client
+is trivially changed to somebody else's.
+
+### Why registration fixes the role server-side
+
+`POST /auth/register` always creates a `Customer`. The role is not read from the request
+body, so a caller cannot register themselves an administrator — there is a test that sends
+`"role": "Admin"` and asserts it is ignored. It is the kind of thing that is obvious once
+stated and very easy to leave open.
 
 ### Two kinds of locking, for two different problems
 

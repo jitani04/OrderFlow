@@ -1,68 +1,90 @@
-import { useCallback, useEffect, useState } from 'react';
-import { clearSession, loadSession, setUnauthorizedHandler } from './api/client';
-import { LoginForm } from './components/LoginForm';
-import { OrdersPanel } from './components/OrdersPanel';
-import { PlaceOrderPanel } from './components/PlaceOrderPanel';
-import { ProductsPanel } from './components/ProductsPanel';
-import type { Session } from './types';
+import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { CartPage } from './pages/CartPage';
+import { CataloguePage } from './pages/CataloguePage';
+import { MyOrdersPage } from './pages/MyOrdersPage';
+import { SignInPage } from './pages/SignInPage';
+import { AdminPage } from './pages/admin/AdminPage';
+import { useCart } from './state/CartContext';
+import { useSession } from './state/SessionContext';
+import type { ReactNode } from 'react';
 
-type Tab = 'order' | 'orders' | 'products';
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'order', label: 'Place order' },
-  { id: 'orders', label: 'Orders' },
-  { id: 'products', label: 'Products & stock' },
-];
-
-export default function App() {
-  const [session, setSession] = useState<Session | null>(() => loadSession());
-  const [tab, setTab] = useState<Tab>('order');
-
-  // Bumped whenever something changes stock or orders, so the other tabs reload rather
-  // than showing a figure that is already out of date.
-  const [refreshToken, setRefreshToken] = useState(0);
-  const bumpRefresh = useCallback(() => setRefreshToken((token) => token + 1), []);
-
-  useEffect(() => {
-    // One place decides what an expired token means: back to the login screen.
-    setUnauthorizedHandler(() => setSession(null));
-  }, []);
-
-  const signOut = useCallback(() => {
-    clearSession();
-    setSession(null);
-  }, []);
+/**
+ * Hides a route from someone who may not use it. This is convenience, not security —
+ * the API enforces the same rules, and it is the only place that can.
+ */
+function RequireAuth({ children, adminOnly = false }: { children: ReactNode; adminOnly?: boolean }) {
+  const { session, isAdmin } = useSession();
+  const location = useLocation();
 
   if (!session) {
-    return <LoginForm onSignedIn={setSession} />;
+    return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />;
   }
 
+  if (adminOnly && !isAdmin) {
+    return (
+      <div className="card">
+        <h2>Not your page</h2>
+        <p className="hint">This area is for administrators. <Link to="/">Back to the shop</Link>.</p>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
+function Masthead() {
+  const { session, isAdmin, signOut } = useSession();
+  const cart = useCart();
+
+  return (
+    <header className="masthead">
+      <div>
+        <h1><Link to="/" className="brand">OrderFlow</Link></h1>
+        <p className="subtitle">Order and inventory management</p>
+      </div>
+
+      <nav className="mainnav">
+        <NavLink to="/" end>Shop</NavLink>
+        <NavLink to="/cart">
+          Cart{cart.itemCount > 0 && <span className="count">{cart.itemCount}</span>}
+        </NavLink>
+        {session && <NavLink to="/orders">My orders</NavLink>}
+        {isAdmin && <NavLink to="/admin">Admin</NavLink>}
+
+        {session ? (
+          <span className="who">
+            {session.username} <button className="link" onClick={signOut}>Sign out</button>
+          </span>
+        ) : (
+          <NavLink to="/login">Sign in</NavLink>
+        )}
+      </nav>
+    </header>
+  );
+}
+
+export default function App() {
   return (
     <div className="app">
-      <header className="masthead">
-        <div>
-          <h1>OrderFlow admin</h1>
-          <p className="subtitle">Order and inventory management</p>
-        </div>
-        <div className="who">
-          Signed in as <strong>{session.username}</strong> ({session.role}){' '}
-          <button className="link" onClick={signOut}>Sign out</button>
-        </div>
-      </header>
+      <Masthead />
 
-      <nav className="tabs">
-        {TABS.map((entry) => (
-          <button key={entry.id} aria-current={tab === entry.id} onClick={() => setTab(entry.id)}>
-            {entry.label}
-          </button>
-        ))}
-      </nav>
-
-      {tab === 'order' && <PlaceOrderPanel onOrderPlaced={bumpRefresh} />}
-      {tab === 'orders' && <OrdersPanel refreshToken={refreshToken} />}
-      {tab === 'products' && (
-        <ProductsPanel isAdmin={session.role === 'Admin'} onChanged={bumpRefresh} />
-      )}
+      <Routes>
+        <Route path="/" element={<CataloguePage />} />
+        <Route path="/cart" element={<CartPage />} />
+        <Route path="/login" element={<SignInPage mode="signIn" />} />
+        <Route path="/register" element={<SignInPage mode="register" />} />
+        <Route path="/orders" element={<RequireAuth><MyOrdersPage /></RequireAuth>} />
+        <Route path="/admin" element={<RequireAuth adminOnly><AdminPage /></RequireAuth>} />
+        <Route
+          path="*"
+          element={
+            <div className="card">
+              <h2>Page not found</h2>
+              <p className="hint"><Link to="/">Back to the shop</Link>.</p>
+            </div>
+          }
+        />
+      </Routes>
     </div>
   );
 }

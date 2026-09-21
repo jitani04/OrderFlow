@@ -5,7 +5,18 @@ import type { Order, OrderStatus, PagedResponse } from '../types';
 const STATUS_FILTERS: (OrderStatus | 'All')[] = ['All', 'Confirmed', 'Rejected', 'Pending'];
 const PAGE_SIZE = 10;
 
-export function OrdersPanel({ refreshToken }: { refreshToken: number }) {
+export function OrdersPanel({
+  refreshToken,
+  title = 'Orders',
+  hint = 'Rejected orders are kept, not discarded — they record what customers tried to buy and could not get.',
+  showCustomer = true,
+}: {
+  refreshToken: number;
+  title?: string;
+  hint?: string;
+  /** Hidden on a customer's own order list, where every row is them. */
+  showCustomer?: boolean;
+}) {
   const [result, setResult] = useState<PagedResponse<Order> | null>(null);
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<OrderStatus | 'All'>('All');
@@ -40,11 +51,8 @@ export function OrdersPanel({ refreshToken }: { refreshToken: number }) {
 
   return (
     <div className="card">
-      <h2>Orders</h2>
-      <p className="hint">
-        Rejected orders are kept, not discarded — they record what customers tried to buy
-        and could not get.
-      </p>
+      <h2>{title}</h2>
+      <p className="hint">{hint}</p>
 
       {error && <div className="alert error">{error}</div>}
 
@@ -67,7 +75,7 @@ export function OrdersPanel({ refreshToken }: { refreshToken: number }) {
         <thead>
           <tr>
             <th>Order</th>
-            <th>Customer</th>
+            {showCustomer && <th>Customer</th>}
             <th>Status</th>
             <th className="num">Lines</th>
             <th className="num">Total</th>
@@ -79,7 +87,7 @@ export function OrdersPanel({ refreshToken }: { refreshToken: number }) {
           {orders.map((order) => (
             <tr key={order.id}>
               <td className="mono">{order.id.slice(0, 8)}</td>
-              <td>{order.customerName}</td>
+              {showCustomer && <td>{order.customerName}</td>}
               <td>
                 <span className={`badge ${order.status.toLowerCase()}`}>{order.status}</span>
               </td>
@@ -91,7 +99,7 @@ export function OrdersPanel({ refreshToken }: { refreshToken: number }) {
           ))}
           {orders.length === 0 && (
             <tr>
-              <td colSpan={7} className="empty">
+              <td colSpan={showCustomer ? 7 : 6} className="empty">
                 {busy ? 'Loading…' : 'No orders match this filter.'}
               </td>
             </tr>

@@ -58,7 +58,11 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
-    if (error.response?.status === 401 && !error.config?.url?.endsWith('/auth/login')) {
+    if (
+      error.response?.status === 401 &&
+      !error.config?.url?.endsWith('/auth/login') &&
+      !error.config?.url?.endsWith('/auth/register')
+    ) {
       clearSession();
       onUnauthorized?.();
       return Promise.reject(new Error('Your session has expired. Please sign in again.'));
@@ -91,6 +95,9 @@ export const api = {
   login: async (username: string, password: string) =>
     (await http.post<Session>('/auth/login', { username, password })).data,
 
+  register: async (username: string, password: string) =>
+    (await http.post<Session>('/auth/register', { username, password })).data,
+
   listProducts: async () => (await http.get<Product[]>('/api/products')).data,
 
   createProduct: async (payload: CreateProductPayload) =>
@@ -110,8 +117,15 @@ export const api = {
       { headers: { 'If-Match': `"${version}"` } },
     )).data,
 
-  placeOrder: async (customerName: string, items: { productId: string; quantity: number }[]) =>
-    (await http.post<Order>('/api/orders', { customerName, items })).data,
+  /**
+   * Places an order. customerName is only honoured for an administrator recording an
+   * order on someone's behalf — a customer's order is always filed under their own
+   * account name, whatever is sent here.
+   */
+  placeOrder: async (
+    items: { productId: string; quantity: number }[],
+    customerName?: string,
+  ) => (await http.post<Order>('/api/orders', { customerName, items })).data,
 
   listOrders: async (query: OrderQuery = {}) =>
     (await http.get<PagedResponse<Order>>('/api/orders', {

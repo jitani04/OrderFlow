@@ -38,11 +38,13 @@ export function PlaceOrderPanel({ onOrderPlaced }: { onOrderPlaced: () => void }
     try {
       // Only product and quantity are sent. The API reads the price from the catalogue,
       // so the browser cannot influence what the order is charged.
+      // The name is honoured because this panel is admin-only; a customer placing their
+      // own order always has it filed under their account name instead.
       const order = await api.placeOrder(
-        customerName,
         lines
           .filter((line) => line.productId && line.quantity > 0)
           .map((line) => ({ productId: line.productId, quantity: line.quantity })),
+        customerName,
       );
 
       setResult(order);
@@ -68,10 +70,10 @@ export function PlaceOrderPanel({ onOrderPlaced }: { onOrderPlaced: () => void }
 
   return (
     <div className="card">
-      <h2>Place an order</h2>
+      <h2>Record an order</h2>
       <p className="hint">
-        Stock is checked and deducted in one transaction, so the answer below is final —
-        there is no pending state to wait through.
+        For an order taken on a customer's behalf. Stock is checked and deducted in one
+        transaction, so the answer below is final — there is no pending state to wait through.
       </p>
 
       {error && <div className="alert error">{error}</div>}
