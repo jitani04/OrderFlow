@@ -32,6 +32,11 @@ public sealed class OrderFlowApiFactory : WebApplicationFactory<Program>, IAsync
         // schema and the admin account exist by the time the first request is served.
         builder.UseSetting("ConnectionStrings:OrderFlowDb", _postgres.GetConnectionString());
         builder.UseSetting("Jwt:SigningKey", "integration-test-signing-key-that-is-long-enough");
+        // Generous by default so the rest of the suite — which registers a customer per
+        // test — is never throttled. The rate-limit tests lower these on their own host.
+        builder.UseSetting("RateLimiting:LoginPermitLimit", "100000");
+        builder.UseSetting("RateLimiting:RegisterPermitLimit", "100000");
+
         builder.UseSetting("Seed:AdminUsername", "admin");
         builder.UseSetting("Seed:AdminPassword", "admin123");
         builder.UseEnvironment("Testing");

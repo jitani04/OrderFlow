@@ -212,11 +212,20 @@ and a NAT gateway is about $32/month plus data — often the surprise line item.
 6. **The migration Job still applies**, and matters more: with an HPA the replica count is
    not something you control by hand, so startup migration is not an option.
 
+### A setting to check per environment
+
+`RateLimiting:TrustForwardedHeaders` is `true` by default, which is correct behind nginx
+or an ALB — the app reads the real client address from `X-Forwarded-For` rather than
+lumping every caller into one rate-limit bucket.
+
+Set it to **false** anywhere the API is reachable directly, because the header is then
+attacker-controlled and any limit can be stepped around by varying it.
+
 ### What would need adding for production
 
 - Structured logs shipped somewhere queryable (CloudWatch, or OpenTelemetry to a collector)
 - Metrics and tracing — the service currently has health checks but no instrumentation
 - `PodDisruptionBudget` so a node drain cannot take every replica at once
 - `NetworkPolicy` restricting which pods may reach the database
-- Rate limiting at the ingress
+- Rate limiting at the ingress as well as in the app, so a flood is dropped before it reaches a pod
 - Refresh tokens; one-hour access tokens with no refresh is thin for real users

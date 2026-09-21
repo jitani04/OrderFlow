@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using OrderFlow.Api.Auth;
+using OrderFlow.Api.Infrastructure;
 using OrderFlow.Api.Models;
 using OrderFlow.Domain.Identity;
 
@@ -22,6 +24,7 @@ public sealed class AuthController(
     /// <summary>Exchanges credentials for a bearer token.</summary>
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimiting.LoginPolicy)]
     [ProducesResponseType<LoginResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<LoginResponse>> Login(
@@ -63,6 +66,7 @@ public sealed class AuthController(
     /// </remarks>
     [HttpPost("register")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimiting.RegisterPolicy)]
     [ProducesResponseType<LoginResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]

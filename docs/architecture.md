@@ -147,8 +147,10 @@ the caller's job. That separation is what makes it testable without infrastructu
 ## Request pipeline
 
 ```
-Serilog request logging
-  → CORS
+Forwarded headers (rewrites the client address from X-Forwarded-For)
+  → Serilog request logging
+    → Rate limiter (anonymous auth endpoints)
+      → CORS
     → Authentication (JWT bearer)
       → Authorization ([Authorize], [Authorize(Roles = "Admin")])
         → Controller
@@ -157,8 +159,14 @@ Serilog request logging
   ← DomainExceptionHandler (DomainException → 400 problem details)
 ```
 
-Order matters: authentication must run before authorization, and both before the
-controller. The exception handler is registered first so it wraps everything after it.
+Order matters, and not only for authentication before authorization.
+
+Forwarded headers must come first: everything downstream that cares who the caller is —
+the rate limiter above all — reads an address that is otherwise nginx's, not the client's.
+
+The rate limiter sits ahead of authentication so that refusing a flood stays cheap.
+Verifying a BCrypt hash is deliberately expensive, which is exactly why an unthrottled
+login endpoint is a good way to burn a server's CPU.
 
 ---
 

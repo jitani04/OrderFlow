@@ -3,6 +3,7 @@ using System.Text;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using OrderFlow.Api.Auth;
@@ -108,13 +109,45 @@ builder.Services.AddSwaggerGen(swagger =>
     }
 });
 
+builder.Services.AddOrderFlowRateLimiting(builder.Configuration);
+
 builder.Services.AddOrderFlowInfrastructure(builder.Configuration);
 
 // ------------------------------------------------------------------------ pipeline ---
 var app = builder.Build();
 
+var rateLimitOptions = builder.Configuration.GetSection(RateLimitOptions.SectionName)
+    .Get<RateLimitOptions>() ?? new RateLimitOptions();
+
+if (rateLimitOptions.TrustForwardedHeaders)
+{
+    // Must run before anything reads the client address. nginx sits in front of the API,
+    // so without this every request appears to come from nginx and the rate limiter would
+    // put the whole world in one bucket.
+    //
+    // KnownIPNetworks and KnownProxies are cleared because the proxy's address is a
+    // container IP that is not known ahead of time. That means the header is taken on
+    // trust, which is only safe while the proxy is the sole route in — it is, in both
+    // compose and Kubernetes, where the API is never published directly. Exposed straight
+    // to the internet this must be turned off, or a caller can forge any address it likes.
+    var forwardedHeaders = new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+        ForwardLimit = 1,
+    };
+
+    forwardedHeaders.KnownIPNetworks.Clear();
+    forwardedHeaders.KnownProxies.Clear();
+
+    app.UseForwardedHeaders(forwardedHeaders);
+}
+
 app.UseExceptionHandler();
 app.UseSerilogRequestLogging();
+
+// Before authentication: rejecting a flood should cost as little as possible, and
+// verifying a BCrypt hash is deliberately expensive.
+app.UseRateLimiter();
 
 app.UseCors(AdminPanelCors);
 

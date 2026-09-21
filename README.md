@@ -205,8 +205,8 @@ Everything requires a bearer token except registration, login and reading the ca
 
 | Method | Path | Role | Purpose |
 |---|---|---|---|
-| `POST` | `/auth/register` | anonymous | Create a customer account and sign in |
-| `POST` | `/auth/login` | anonymous | Exchange credentials for a JWT |
+| `POST` | `/auth/register` | anonymous | Create a customer account and sign in — rate limited |
+| `POST` | `/auth/login` | anonymous | Exchange credentials for a JWT — rate limited |
 | `GET` | `/auth/me` | any | Confirm a token is still valid |
 | `GET` | `/api/products` | **anonymous** | List products with current stock |
 | `GET` | `/api/products/{id}` | **anonymous** | One product with its stock |
@@ -297,6 +297,43 @@ to buy and could not get, which is the signal that drives restocking. It returns
 A product that exists but is short produces a `Rejected` order. A product id that does not
 exist at all is a bad request and returns `400`. Conflating them also violates the
 `order_items` foreign key, since a rejected order still persists its lines.
+
+### Why the auth endpoints are rate limited, and the shop is not
+
+`POST /auth/login` and `POST /auth/register` are anonymous, so they are the endpoints
+worth attacking — credential stuffing on one, account flooding on the other. Both are
+throttled per client: 10 sign-ins a minute, 5 registrations in fifteen. A refused request
+returns `429` with a `Retry-After` header, because a client told only "too many" will
+retry immediately.
+
+The limiter runs **before authentication**. Rejecting a flood should cost as little as
+possible, and verifying a BCrypt hash is deliberately expensive — that cost is the point
+of BCrypt, and it is also what makes an unthrottled login endpoint an easy way to burn
+someone's CPU.
+
+Browsing the catalogue is not throttled. It is not an attack, and a shop that refuses to
+show its products to an enthusiastic visitor has failed at being a shop.
+
+Limiting is by **client**, not by username. Throttling a username lets an attacker lock a
+real person out of their own account simply by failing to log in as them.
+
+### The detail that makes it work: forwarded headers
+
+nginx sits in front of the API, so every request arrives from *nginx's* address. Partition
+the limiter on that and every user in the world shares one bucket — a single attacker
+locks out everybody, and the protection becomes the outage.
+
+`UseForwardedHeaders` rewrites the client address from `X-Forwarded-For` before the
+limiter runs. `KnownIPNetworks` and `KnownProxies` are cleared, because the proxy's address
+is a container IP that is not known in advance — which means the header is taken on trust.
+That is safe only while the proxy is the sole route in, which it is in both compose and
+Kubernetes. Exposed directly to the internet this must be switched off via
+`RateLimiting:TrustForwardedHeaders`, or a caller can forge any address it likes and
+sidestep the limit entirely.
+
+There is a test for exactly this: one client exhausts its allowance while another is
+unaffected. With `TrustForwardedHeaders` set to `false` it fails, with the bystander
+receiving `429`.
 
 ### Why a customer sees 404, not 403, for someone else's order
 
